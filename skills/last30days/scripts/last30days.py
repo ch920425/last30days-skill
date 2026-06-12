@@ -327,8 +327,8 @@ def parse_competitors_plan(raw: str | None) -> dict[str, dict]:
     plan_str = raw
     if os.path.isfile(plan_str):
         try:
-            plan_str = open(plan_str).read()
-        except OSError as exc:
+            plan_str = open(plan_str, encoding="utf-8").read()
+        except (OSError, UnicodeDecodeError) as exc:
             sys.stderr.write(f"[CompetitorsPlan] Cannot read plan file: {exc}\n")
             raise SystemExit(2)
     try:
@@ -640,7 +640,11 @@ def main() -> int:
             import json as _json
             plan_str = args.plan
             if os.path.isfile(plan_str):
-                plan_str = open(plan_str).read()
+                try:
+                    plan_str = open(plan_str, encoding="utf-8").read()
+                except (OSError, UnicodeDecodeError) as exc:
+                    sys.stderr.write(f"[Planner] Cannot read --plan file: {exc}\n")
+                    raise SystemExit(2)
             try:
                 external_plan = _json.loads(plan_str)
             except _json.JSONDecodeError as exc:
