@@ -716,10 +716,20 @@ class SignalsV3Tests(unittest.TestCase):
             snippet="This is a detailed transcript about the topic with substantive discussion...",
             local_relevance=0.05,
         )
-        pruned = signals.prune_low_relevance([has_transcript], minimum=0.15)
+        strong = schema.SourceItem(
+            item_id="yt-strong",
+            source="youtube",
+            title="Strong video",
+            body="Detailed analysis of the topic",
+            url="https://youtube.com/watch?v=strong",
+            snippet="Detailed transcript content about the topic",
+            local_relevance=0.6,
+        )
+        pruned = signals.prune_low_relevance([strong, has_transcript], minimum=0.15)
         ids = [item.item_id for item in pruned]
         self.assertIn("yt-transcript", ids,
                       "YouTube item with transcript should survive pruning")
+        self.assertIn("yt-strong", ids, "Strong item should survive")
 
     def test_youtube_without_transcript_is_pruned_normally(self):
         """A YouTube item with no transcript (empty snippet) and low relevance
