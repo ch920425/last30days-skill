@@ -134,8 +134,18 @@ class CliV3Tests(unittest.TestCase):
             "web",
             cli._missing_sources_for_promo({"available_sources": ["reddit", "x"]}),
         )
+        # The web promo is satisfied by a paid backend (better web search), not
+        # by the keyless grounding floor — keyless web is always available now.
         self.assertIsNone(
-            cli._missing_sources_for_promo({"available_sources": ["reddit", "x", "grounding"]}),
+            cli._missing_sources_for_promo(
+                {"available_sources": ["reddit", "x", "grounding"], "native_web_backend": "brave"}
+            ),
+        )
+        # ...or suppressed entirely on a native-search host.
+        self.assertIsNone(
+            cli._missing_sources_for_promo(
+                {"available_sources": ["reddit", "x", "grounding"], "native_search": True}
+            ),
         )
 
     def test_slugify_and_emit_output_cover_supported_modes(self):

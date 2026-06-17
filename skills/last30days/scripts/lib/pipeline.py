@@ -179,6 +179,7 @@ def diagnose(config: dict[str, Any], requested_sources: list[str] | None = None)
         "bird_authenticated": x_status["bird_authenticated"],
         "bird_username": x_status["bird_username"],
         "native_web_backend": native_web_backend,
+        "native_search": env.is_native_search(config),
         "has_scrapecreators": bool(config.get("SCRAPECREATORS_API_KEY")),
         "has_github": bool(config.get("GITHUB_TOKEN") or which("gh")),
         "available_sources": available_sources(config, requested_sources),

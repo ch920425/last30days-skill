@@ -509,7 +509,12 @@ def _missing_sources_for_promo(diag: dict[str, object]) -> str | None:
         missing.append("reddit")
     if "x" not in available:
         missing.append("x")
-    if "grounding" not in available:
+    # The web promo nudges toward a paid backend for higher-quality web search.
+    # Grounding is now available keyless on non-native hosts, so key the promo on
+    # the absence of a *paid* backend, not on grounding availability. Suppress it
+    # entirely on native-search hosts, where the model's own search is better and
+    # setting a paid engine key would be the wrong advice.
+    if not diag.get("native_web_backend") and not diag.get("native_search"):
         missing.append("web")
     if not missing:
         return None
