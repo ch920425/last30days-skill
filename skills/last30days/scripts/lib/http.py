@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional, Union
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from . import cost_markers
 from . import log as _log
@@ -34,10 +34,11 @@ _SC_SOURCE_RE = re.compile(r"api\.scrapecreators\.com/v\d+/([a-z0-9_-]+)", re.I)
 
 def _paid_provider_for(url: str):
     """Return the paid-API provider slug for a URL's host, or None."""
-    for host, provider in _PAID_HOSTS.items():
-        if host in (url or ""):
-            return provider
-    return None
+    try:
+        host = (urlparse(url or "").hostname or "").lower()
+    except Exception:
+        return None
+    return _PAID_HOSTS.get(host)
 
 
 def _scrapecreators_source(url: str) -> str:

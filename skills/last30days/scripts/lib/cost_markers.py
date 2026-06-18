@@ -101,6 +101,10 @@ def emit_cost(
             f"reasoning_tokens=0 cached_tokens=0 "
             f"calls={n} cost_usd={cost:.6f}\n"
         )
+        try:
+            out.flush()
+        except Exception:  # pragma: no cover - defensive
+            pass
         return cost
     except Exception:  # pragma: no cover - defensive
         return 0.0
