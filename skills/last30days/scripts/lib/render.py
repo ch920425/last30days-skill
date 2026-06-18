@@ -870,7 +870,13 @@ def render_full(report: schema.Report) -> str:
             lines.extend(_render_candidate(candidate, prefix=f"{rep_index}."))
         lines.append("")
 
-    best_takes = _render_best_takes(report.ranked_candidates)
+    fun_params = _FUN_LEVELS["medium"]
+    best_takes = _render_best_takes(
+        report.ranked_candidates,
+        limit=fun_params["limit"],
+        threshold=fun_params["threshold"],
+        vote_weight=fun_params["vote_weight"],
+    )
     if best_takes:
         lines.extend(best_takes)
         lines.append("")
