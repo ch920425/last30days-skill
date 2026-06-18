@@ -6,7 +6,6 @@ import shutil
 import stat
 import subprocess
 import sys
-import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -294,7 +293,7 @@ class TestCheckPermsAutoFix(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("Auto-fixed", result.stdout)
+            self.assertIn("auto-fixed", result.stdout.lower())
             self.assertEqual(stat.S_IMODE(os.stat(env_file).st_mode), 0o600)
 
 

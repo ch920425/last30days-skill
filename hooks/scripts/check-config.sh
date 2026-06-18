@@ -28,9 +28,7 @@ check_perms() {
   # every Linux session start and printed a false WARNING.
   perms=$(stat -c '%a' "$file" 2>/dev/null || stat -f '%Lp' "$file" 2>/dev/null || echo "")
   if [[ -n "$perms" && "$perms" != "600" && "$perms" != "400" ]]; then
-    chmod 600 "$file" 2>/dev/null || true
-    echo "/last30days: WARNING — $file has permissions $perms (should be 600)."
-    echo "  Auto-fixed with: chmod 600 $file"
+    chmod 600 "$file" && echo "/last30days: WARNING — $file had permissions $perms — auto-fixed with chmod 600" || echo "/last30days: WARNING — $file has permissions $perms (should be 600). Fix: chmod 600 $file"
   fi
 }
 
