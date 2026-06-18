@@ -354,10 +354,15 @@ def get_setup_status_text(results: Dict[str, Any]) -> str:
     elif digg_action == "already_installed":
         lines.append("  - Digg CLI already installed (AI-news clusters active)")
     elif digg_action == "installed_off_path":
-        digg_path = results.get("digg_path", "$HOME/.local/bin/digg-pp-cli")
+        digg_path = results.get("digg_path", "")
+        # Tell the user to add the dir where the binary was ACTUALLY found
+        # (probed across ~/.local/bin, $GOPATH/bin, ~/go/bin, Windows). Hardcoding
+        # ~/.local/bin would misdirect a user whose binary lives in ~/go/bin.
+        bin_dir = str(Path(digg_path).parent) if digg_path else "$HOME/.local/bin"
+        shown_path = digg_path or "$HOME/.local/bin/digg-pp-cli"
         lines.append(
-            f"  - Digg CLI found at {digg_path} but not on PATH — add "
-            "$HOME/.local/bin to PATH and restart your agent session/gateway "
+            f"  - Digg CLI found at {shown_path} but not on PATH — add "
+            f"{bin_dir} to PATH and restart your agent session/gateway "
             "for Digg to activate"
         )
     elif digg_action == "install_failed":

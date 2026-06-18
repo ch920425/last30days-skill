@@ -546,6 +546,18 @@ class TestGetSetupStatusText:
         assert ".local/bin" in text
         assert "now active" not in text.lower()
 
+    def test_status_text_digg_off_path_uses_actual_dir(self):
+        """The PATH instruction names the dir where the binary was ACTUALLY found,
+        not a hardcoded ~/.local/bin (Greptile #590)."""
+        results = {"cookies_found": {}, "ytdlp_action": "already_installed",
+                   "digg_action": "installed_off_path",
+                   "digg_path": "/Users/me/go/bin/digg-pp-cli",
+                   "env_written": False}
+        text = setup_wizard.get_setup_status_text(results)
+        assert "/Users/me/go/bin/digg-pp-cli" in text
+        assert "add /Users/me/go/bin to PATH" in text
+        assert ".local/bin" not in text
+
     def test_status_text_digg_no_npx(self):
         results = {"cookies_found": {}, "ytdlp_action": "already_installed",
                    "digg_action": "no_npx", "env_written": False}
