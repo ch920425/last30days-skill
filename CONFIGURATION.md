@@ -44,6 +44,7 @@ The engine's `.env` reader doesn't expand `$HOME` — only the tilde, via `Path(
 - `--save-dir <path>` - one-off output location. **Flag wins over env var.** If neither flag nor env var is set, the engine does not write a file (DB persistence is independent — see `LAST30DAYS_STORE` below).
 - `--output <file>` - write the rendered output to an exact file path, using the format selected by `--emit`.
 - `--save-suffix <name>` - distinguish runs of the same topic (e.g. per client: `--save-suffix=acme`).
+- `--no-browser-cookies` - hard-disable browser-cookie extraction for this run, even when `FROM_BROWSER` is configured. MCP and folder-mode hosts use this for safe defaults.
 
 The footer line `📎 Raw results saved to ${LAST30DAYS_MEMORY_DIR:-$HOME/Documents/Last30Days}/<slug>-raw.md` is the canonical pointer; if it shows backslashes on Windows update past v3.1.1.
 
@@ -58,7 +59,7 @@ On the very first `/last30days` run (no `~/.config/last30days/.env`, or `SETUP_C
 
 Both share the same consent points:
 
-1. **Browser cookies** - the model asks before reading anything. On yes it extracts Firefox/Safari cookies (never Chrome, to avoid a macOS Keychain prompt) to unlock X/Twitter and other logged-in sources, and installs yt-dlp + the keyless Digg CLI. On no it runs setup with `FROM_BROWSER=off` (skips all cookie reads, still installs the tools).
+1. **Browser cookies** - the model asks before reading anything. On yes it runs `setup --allow-browser-cookies`, which extracts Firefox/Safari cookies (never Chrome unless `FROM_BROWSER=auto` or a named Chromium browser is explicitly configured) to unlock X/Twitter and other logged-in sources, and installs yt-dlp + the keyless Digg CLI. On no it runs setup without `--allow-browser-cookies` (or with `FROM_BROWSER=off`), which skips all cookie reads and still installs the tools.
 2. **Full Disk Access (macOS)** - if a cookie read is permission-denied, the model surfaces the System Settings > Privacy & Security > Full Disk Access fix and offers one retry.
 3. **ScrapeCreators GitHub signup** - offered on every first run (10,000 free calls). On consent it runs `setup --github`, which opens a browser for GitHub device-auth (or registers instantly via the `gh` CLI when installed) and, on success, **persists `SCRAPECREATORS_API_KEY` automatically** (0o600, masked in output) so TikTok, Instagram, X, YouTube comments, and the SC Reddit/YouTube backups activate on the next run. Decline anytime; you can run it later by asking to set up ScrapeCreators. (Threads and Pinterest are not surfaced in onboarding but remain available via `INCLUDE_SOURCES`.)
 
@@ -129,10 +130,11 @@ CT0=<your-ct0-token>
 # OR Xquik key-based X search
 # XQUIK_API_KEY=<your-xquik-key>
 # OR cookie-jar (free; logs in via your browser session).
-# Unset = Firefox + Safari (silent). FROM_BROWSER=auto also tries the Chromium
-# family (Chrome, Brave, Edge, Vivaldi, Opera, Arc, Chromium); it only prompts
-# for macOS Keychain access on the browser that actually holds your X cookies.
-# Or name a single browser, e.g. brave/edge. On Windows only Firefox is supported.
+# Unset = no browser-cookie reads. FROM_BROWSER=auto tries Firefox/Safari and
+# the Chromium family (Chrome, Brave, Edge, Vivaldi, Opera, Arc, Chromium); it
+# only prompts for macOS Keychain access on the browser that actually holds your
+# X cookies. Or name a single browser, e.g. brave/edge. On Windows only Firefox
+# is supported.
 # FROM_BROWSER=firefox
 
 # Bluesky
@@ -142,7 +144,7 @@ BSKY_APP_PASSWORD=<your-app-password>
 
 After editing: `chmod 600 ~/.config/last30days/.env` (or `chmod 600 .claude/last30days.env` if using the project-scoped variant).
 
-**Troubleshooting:** if a source you expected to see isn't appearing in results, run `python3 scripts/last30days.py --diagnose`. It prints a per-source availability report (which keys were detected, which CLIs are installed, which backends are reachable) without running a full search.
+**Troubleshooting:** if a source you expected to see isn't appearing in results, run `python3 scripts/last30days.py --diagnose`. It prints a safe preflight report for source availability, config source, browser-cookie plan, external command availability, and write destinations without reading browser cookies or running live provider probes.
 
 ### Perplexity source modes
 

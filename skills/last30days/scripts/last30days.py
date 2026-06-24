@@ -293,6 +293,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--debug", action="store_true", help="Enable HTTP debug logging")
     parser.add_argument("--mock", action="store_true", help="Use mock retrieval fixtures")
     parser.add_argument("--diagnose", action="store_true", help="Print provider and source availability")
+    parser.add_argument("--no-browser-cookies", action="store_true",
+                        help="Disable browser-cookie extraction even when FROM_BROWSER is configured")
     parser.add_argument("--save-dir", help="Optional directory for saving the rendered output")
     parser.add_argument("--output", help="Optional exact file path for saving the rendered output")
     parser.add_argument("--synthesis-file", help="Markdown synthesis to embed in --emit=html output")
@@ -618,7 +620,7 @@ def _write_last_run(topic: str, report: "schema.Report") -> None:
         pass
 
 
-def _propagate_config_to_environ() -> None:
+def _propagate_config_to_environ(config: dict[str, object]) -> None:
     """Push relevant env keys to os.environ so provider modules can read them.
 
     The env.get_config() function reads from a .env file, but providers.py
@@ -626,17 +628,26 @@ def _propagate_config_to_environ() -> None:
     XAI_BASE_URL overrides are silently ignored. This is a no-op for
     keys that are already set in process env.
     """
-    try:
-        config = env.get_config()
-    except Exception:
-        return
     for key in ("OPENAI_BASE_URL", "XAI_BASE_URL"):
         val = config.get(key)
         if val and not os.environ.get(key):
             os.environ[key] = val
 
 
-_propagate_config_to_environ()
+def _setup_allows_browser_cookies(extra_argv: list[str]) -> bool:
+    return "--allow-browser-cookies" in extra_argv
+
+
+def _config_policy_for_args(args: argparse.Namespace, topic: str, extra_argv: list[str]) -> env.ConfigLoadPolicy:
+    if args.no_browser_cookies:
+        browser_mode = "off"
+    elif args.diagnose:
+        browser_mode = "plan_only"
+    elif topic.lower() == "setup":
+        browser_mode = "read" if _setup_allows_browser_cookies(extra_argv) else "off"
+    else:
+        browser_mode = "read"
+    return env.ConfigLoadPolicy(browser_cookies=browser_mode)
 
 
 def main() -> int:
@@ -647,7 +658,9 @@ def main() -> int:
     if args.debug:
         os.environ["LAST30DAYS_DEBUG"] = "1"
 
-    config = env.get_config()
+    topic = " ".join(args.topic).strip()
+    config = env.get_config(policy=_config_policy_for_args(args, topic, extra_argv))
+    _propagate_config_to_environ(config)
 
     # Env-var fallback for --save-dir, mirroring the LAST30DAYS_STORE pattern below.
     # Uses `is None` / `is not None` checks (not truthy `or`) at every layer so that
@@ -666,7 +679,6 @@ def main() -> int:
         os.environ["LAST30DAYS_YOUTUBE_SSH_HOST"] = config["LAST30DAYS_YOUTUBE_SSH_HOST"]
 
     # Handle setup subcommand
-    topic = " ".join(args.topic).strip()
     if topic.lower() == "setup":
         from lib import setup_wizard
         if "--openclaw" in extra_argv:
@@ -690,7 +702,10 @@ def main() -> int:
             print(json.dumps(results))
             return 0
         sys.stderr.write("Running auto-setup...\n")
-        results = setup_wizard.run_auto_setup(config)
+        results = setup_wizard.run_auto_setup(
+            config,
+            allow_browser_cookies=_setup_allows_browser_cookies(extra_argv),
+        )
         # Persist FROM_BROWSER only when every service's cookies came from the
         # SAME single browser — then we can fast-path future runs to it. If
         # different services matched different browsers, or none matched, leave
@@ -706,7 +721,7 @@ def main() -> int:
         return 0
 
     requested_sources = resolve_requested_sources(args.search, config)
-    diag = pipeline.diagnose(config, requested_sources)
+    diag = pipeline.diagnose(config, requested_sources, safe=args.diagnose)
 
     if args.diagnose:
         print(json.dumps(diag, indent=2, sort_keys=True))

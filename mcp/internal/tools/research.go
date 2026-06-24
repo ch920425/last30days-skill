@@ -74,10 +74,7 @@ func makeResearchHandler(cfg Config) server.ToolHandlerFunc {
 			)), nil
 		}
 
-		runArgs := []string{topic, "--emit=" + emit}
-		if save {
-			runArgs = append(runArgs, "--save")
-		}
+		runArgs := researchRunArgs(topic, emit, save)
 
 		res, runErr := engine.Run(ctx, engine.RunOptions{
 			CacheDir: cacheDir,
@@ -88,6 +85,14 @@ func makeResearchHandler(cfg Config) server.ToolHandlerFunc {
 		}
 		return mcplib.NewToolResultText(string(res.Stdout)), nil
 	}
+}
+
+func researchRunArgs(topic, emit string, save bool) []string {
+	runArgs := []string{topic, "--emit=" + emit, "--no-browser-cookies"}
+	if save {
+		runArgs = append(runArgs, "--save")
+	}
+	return runArgs
 }
 
 func requireString(args map[string]any, name string) (string, error) {
