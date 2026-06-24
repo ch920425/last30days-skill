@@ -84,11 +84,29 @@ BrowserCookieMode = Literal["off", "read", "plan_only"]
 class ConfigLoadPolicy:
     """Local-read gates for configuration loading.
 
-    Bare library calls use the safe default: no browser-cookie extraction. CLI
-    entry points can opt into narrower behavior after parsing command intent.
+    Bare library calls use the safe default: no browser-cookie extraction and no
+    project-scoped config. CLI entry points can opt into narrower behavior after
+    parsing command intent.
     """
 
     browser_cookies: BrowserCookieMode = "off"
+    allow_project_config: bool = False
+    inspect_ignored_project_config: bool = False
+
+
+def _truthy(value: Any) -> bool:
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _project_config_trusted(policy: ConfigLoadPolicy, file_env: dict[str, Any]) -> bool:
+    if policy.allow_project_config:
+        return True
+    return _truthy(
+        os.environ.get("LAST30DAYS_TRUST_PROJECT_CONFIG")
+        or file_env.get("LAST30DAYS_TRUST_PROJECT_CONFIG")
+    )
 
 
 def _check_file_permissions(path: Path) -> None:
@@ -329,13 +347,15 @@ def _find_project_env() -> Path | None:
     """Find per-project .env by walking up from cwd.
 
     Searches for .claude/last30days.env in each parent directory,
-    stopping at the user's home directory or filesystem root.
+    stopping at the git root, user's home directory, or filesystem root.
     """
     cwd = Path.cwd()
     for parent in [cwd, *cwd.parents]:
         candidate = parent / '.claude' / 'last30days.env'
         if candidate.exists():
             return candidate
+        if (parent / ".git").exists():
+            break
         # Stop at filesystem root or home
         if parent == Path.home() or parent == parent.parent:
             break
@@ -347,7 +367,7 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
 
     Priority (highest wins):
       1. Environment variables (os.environ)
-      2. .claude/last30days.env (per-project config)
+      2. Trusted .claude/last30days.env (per-project config)
       3. ~/.config/last30days/.env (global config)
       4. macOS Keychain items prefixed ``last30days-`` (Darwin only)
     """
@@ -355,9 +375,18 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
     # Load from global config file
     file_env = load_env_file(CONFIG_FILE) if CONFIG_FILE else {}
 
-    # Load from per-project config (overrides global)
-    project_env_path = _find_project_env()
+    # Load per-project config only when trust comes from process env, global
+    # user config, or an explicit policy. A project file cannot grant trust to
+    # itself because it is not parsed until after this decision.
+    project_config_trusted = _project_config_trusted(policy, file_env)
+    project_env_path = _find_project_env() if project_config_trusted else None
     project_env = load_env_file(project_env_path) if project_env_path else {}
+    ignored_project_env_path = None
+    ignored_project_keys: list[str] = []
+    if not project_config_trusted and policy.inspect_ignored_project_config:
+        ignored_project_env_path = _find_project_env()
+        if ignored_project_env_path:
+            ignored_project_keys = sorted(load_env_file(ignored_project_env_path).keys())
 
     # Merge file sources: project > global
     merged_env = {**file_env, **project_env}
@@ -444,6 +473,7 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         # Optional SearXNG instance for the keyless-search fallback rung.
         ('LAST30DAYS_SEARXNG_URL', None),
         ('FROM_BROWSER', None),
+        ('LAST30DAYS_TRUST_PROJECT_CONFIG', None),
         ('SETUP_COMPLETE', None),
         ('INCLUDE_SOURCES', ''),
         ('EXCLUDE_SOURCES', ''),
@@ -491,7 +521,9 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         config['_CONFIG_SOURCE'] = 'pass'
     else:
         config['_CONFIG_SOURCE'] = 'env_only'
-
+    if ignored_project_env_path:
+        config['_IGNORED_PROJECT_CONFIG'] = str(ignored_project_env_path)
+        config['_IGNORED_PROJECT_CONFIG_KEYS'] = ignored_project_keys
     config['_BROWSER_COOKIE_MODE'] = policy.browser_cookies
     config['_BROWSER_COOKIE_BROWSERS'] = cookie_extraction_browsers(config)
 

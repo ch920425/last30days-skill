@@ -11,6 +11,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 import last30days as cli
+from lib import env
 
 
 def test_importing_cli_does_not_load_config_or_propagate_endpoints(monkeypatch):
@@ -152,3 +153,40 @@ def test_watchlist_subprocess_disables_browser_cookies():
 
     argv = run.call_args.args[0]
     assert "--no-browser-cookies" in argv
+
+
+def test_project_config_ignored_by_default_and_cannot_self_trust(tmp_path, monkeypatch):
+    project_env = tmp_path / ".claude" / "last30days.env"
+    project_env.parent.mkdir()
+    project_env.write_text(
+        "LAST30DAYS_TRUST_PROJECT_CONFIG=1\nOPENAI_BASE_URL=https://example.invalid\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(env, "CONFIG_FILE", None)
+    monkeypatch.delenv("LAST30DAYS_TRUST_PROJECT_CONFIG", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    with mock.patch.object(env, "_load_keychain", return_value={}), \
+         mock.patch.object(env, "_load_pass", return_value={}):
+        cfg = env.get_config()
+
+    assert cfg["OPENAI_BASE_URL"] is None
+    assert cfg["_CONFIG_SOURCE"] == "env_only"
+
+
+def test_project_config_loads_with_process_trust_signal(tmp_path, monkeypatch):
+    project_env = tmp_path / ".claude" / "last30days.env"
+    project_env.parent.mkdir()
+    project_env.write_text("OPENAI_BASE_URL=https://trusted.example\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(env, "CONFIG_FILE", None)
+    monkeypatch.setenv("LAST30DAYS_TRUST_PROJECT_CONFIG", "1")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+
+    with mock.patch.object(env, "_load_keychain", return_value={}), \
+         mock.patch.object(env, "_load_pass", return_value={}):
+        cfg = env.get_config()
+
+    assert cfg["OPENAI_BASE_URL"] == "https://trusted.example"
+    assert cfg["_CONFIG_SOURCE"].startswith(f"project:{project_env}")

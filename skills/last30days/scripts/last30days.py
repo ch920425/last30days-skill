@@ -651,7 +651,10 @@ def _config_policy_for_args(args: argparse.Namespace, topic: str, extra_argv: li
         browser_mode = "read" if _setup_allows_browser_cookies(args, extra_argv) else "off"
     else:
         browser_mode = "read"
-    return env.ConfigLoadPolicy(browser_cookies=browser_mode)
+    return env.ConfigLoadPolicy(
+        browser_cookies=browser_mode,
+        inspect_ignored_project_config=args.diagnose,
+    )
 
 
 def main() -> int:

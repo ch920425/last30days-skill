@@ -203,6 +203,10 @@ def diagnose(
         "browsers": list(config.get("_BROWSER_COOKIE_BROWSERS") or []),
         "reads_values": False if safe else config.get("_BROWSER_COOKIE_MODE") == "read",
     }
+    ignored_project_keys = list(config.get("_IGNORED_PROJECT_CONFIG_KEYS") or [])
+    ignored_endpoint_overrides = [
+        key for key in ignored_project_keys if key in {"OPENAI_BASE_URL", "XAI_BASE_URL"}
+    ]
     local_writes: list[dict[str, str]] = []
     if config.get("LAST30DAYS_MEMORY_DIR"):
         local_writes.append({"kind": "report", "path": str(config.get("LAST30DAYS_MEMORY_DIR"))})
@@ -224,6 +228,9 @@ def diagnose(
         "available_sources": available_sources(config, requested_sources),
         "safe": safe,
         "config_source": config.get("_CONFIG_SOURCE"),
+        "ignored_project_config": config.get("_IGNORED_PROJECT_CONFIG"),
+        "ignored_project_config_keys": ignored_project_keys,
+        "ignored_endpoint_overrides": ignored_endpoint_overrides,
         "browser_cookies": browser_cookies,
         "external_commands": external_commands,
         "credential_destinations": credential_destinations,

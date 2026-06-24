@@ -69,14 +69,14 @@ Re-run onboarding by deleting `~/.config/last30days/.env`. The mechanical work l
 
 ## API keys (`.env`)
 
-The skill reads keys from a `.env` file. Two locations are supported, in priority order:
+The skill reads keys from a `.env` file. Two locations are supported:
 
-1. **`.claude/last30days.env`** in the current project directory (project-scoped) - takes precedence when present.
-2. **`~/.config/last30days/.env`** at the user level (global default) - the fallback.
+1. **`~/.config/last30days/.env`** at the user level (global default) - loaded by default.
+2. **`.claude/last30days.env`** in the current project directory (project-scoped) - loaded only when trusted by setting `LAST30DAYS_TRUST_PROJECT_CONFIG=1` in the process environment or global config.
 
 Override the global location with `LAST30DAYS_CONFIG_DIR=/path` (or `LAST30DAYS_CONFIG_DIR=""` for no-config mode). File permissions should be `600` on POSIX hosts - the engine warns on every run if they aren't.
 
-The project-scoped file is the cleanest pattern for **per-client setups**: drop a `.claude/last30days.env` into each client folder (`SCRAPECREATORS_API_KEY`, `INCLUDE_SOURCES`, `LAST30DAYS_MEMORY_DIR`, `BSKY_HANDLE`, etc), `cd` into that folder, and the skill picks up that client's configuration automatically. No wrapper scripts needed for the common case.
+The project-scoped file is useful for **intentional per-client setups**: drop a `.claude/last30days.env` into each client folder (`SCRAPECREATORS_API_KEY`, `INCLUDE_SOURCES`, `LAST30DAYS_MEMORY_DIR`, `BSKY_HANDLE`, etc), then opt in with `LAST30DAYS_TRUST_PROJECT_CONFIG=1` from your shell or `~/.config/last30days/.env`. Folder-mode hosts such as Codex desktop do not trust hidden project config by default, and discovery stops at the git root so unrelated parent folders cannot silently influence runs.
 
 **Source-by-source** - what each key unlocks:
 
@@ -144,7 +144,7 @@ BSKY_APP_PASSWORD=<your-app-password>
 
 After editing: `chmod 600 ~/.config/last30days/.env` (or `chmod 600 .claude/last30days.env` if using the project-scoped variant).
 
-**Troubleshooting:** if a source you expected to see isn't appearing in results, run `python3 scripts/last30days.py --diagnose`. It prints a safe preflight report for source availability, config source, browser-cookie plan, external command availability, and write destinations without reading browser cookies or running live provider probes.
+**Troubleshooting:** if a source you expected to see isn't appearing in results, run `python3 scripts/last30days.py --diagnose`. It prints a safe preflight report for source availability, config source, browser-cookie plan, external command availability, write destinations, and ignored untrusted project config without reading browser cookies or running live provider probes.
 
 ### Perplexity source modes
 
@@ -334,9 +334,9 @@ The schedule field stored on each topic is metadata - the actual cron / Task Sch
 
 The skill is built to flex around different client environments. Four patterns that compose well:
 
-### 1. Per-client `.claude/last30days.env` (preferred when you cd into client folders)
+### 1. Trusted per-client `.claude/last30days.env`
 
-The simplest pattern when each client has its own working directory: drop a `.claude/last30days.env` into the client folder. The skill picks it up automatically (see [API keys](#api-keys-env) for the lookup priority). Typical contents:
+When each client has its own working directory, drop a `.claude/last30days.env` into the client folder and opt in with `LAST30DAYS_TRUST_PROJECT_CONFIG=1` from your shell or global `~/.config/last30days/.env`. The skill loads the project file only after that trust signal. Typical contents:
 
 ```bash
 LAST30DAYS_MEMORY_DIR=C:\Users\<you>\Clients\acme\Research\Last30Days
@@ -345,7 +345,7 @@ INCLUDE_SOURCES=tiktok,instagram
 BSKY_HANDLE=<acme-bluesky-handle>.bsky.social
 ```
 
-`cd` into the client folder, run `/last30days <topic>` as normal, no flags or wrappers. Combine with `--save-suffix=<client-slug>` per run if you also need to differentiate filenames within that folder.
+`cd` into the client folder, run `/last30days <topic>` as normal, no wrappers. Combine with `--save-suffix=<client-slug>` per run if you also need to differentiate filenames within that folder.
 
 ### 2. Per-client save dir + suffix wrapper
 
