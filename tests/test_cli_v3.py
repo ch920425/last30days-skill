@@ -17,9 +17,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class CliV3Tests(unittest.TestCase):
-    def make_report(self) -> schema.Report:
+    def make_report(self, topic: str = "OpenClaw vs NanoClaw") -> schema.Report:
         return schema.Report(
-            topic="OpenClaw vs NanoClaw",
+            topic=topic,
             range_from="2026-02-14",
             range_to="2026-03-16",
             generated_at="2026-03-16T00:00:00+00:00",
@@ -32,12 +32,12 @@ class CliV3Tests(unittest.TestCase):
                 intent="comparison",
                 freshness_mode="balanced_recent",
                 cluster_mode="debate",
-                raw_topic="OpenClaw vs NanoClaw",
+                raw_topic=topic,
                 subqueries=[
                     schema.SubQuery(
                         label="primary",
-                        search_query="openclaw vs nanoclaw",
-                        ranking_query="How does OpenClaw compare to NanoClaw?",
+                        search_query=topic.lower(),
+                        ranking_query=f"What are people saying about {topic}?",
                         sources=["grounding"],
                     )
                 ],
@@ -421,7 +421,6 @@ class CliV3Tests(unittest.TestCase):
             self.assertIn(f"[last30days] Saved output to {output_path.resolve()}", stderr.getvalue())
 
     def test_main_combines_output_and_save_dir_for_comparison_html(self):
-        report = self.make_report()
         diag = {
             "available_sources": ["grounding"],
             "providers": {"google": True, "openai": False, "xai": False},
@@ -432,12 +431,16 @@ class CliV3Tests(unittest.TestCase):
             "native_web_backend": "brave",
         }
         fake_progress = mock.Mock()
+
+        def run_report(*_args, **kwargs):
+            return self.make_report(topic=kwargs["topic"])
+
         with tempfile.TemporaryDirectory() as tmp:
             output_path = Path(tmp) / "exports" / "comparison.html"
             save_dir = Path(tmp) / "saved"
             with mock.patch.object(cli.env, "get_config", return_value={}), \
                  mock.patch.object(cli.pipeline, "diagnose", return_value=diag), \
-                 mock.patch.object(cli.pipeline, "run", return_value=report), \
+                 mock.patch.object(cli.pipeline, "run", side_effect=run_report), \
                  mock.patch.object(cli.ui, "ProgressDisplay", return_value=fake_progress), \
                  mock.patch.object(
                      cli, "emit_comparison_output", return_value="<html>comparison</html>"
@@ -471,10 +474,14 @@ class CliV3Tests(unittest.TestCase):
                 "<html>comparison</html>",
                 comparison_saved.read_text(encoding="utf-8"),
             )
+            peer_saved = save_dir / "beta-raw-html.html"
+            self.assertEqual("<html>peer</html>", peer_saved.read_text(encoding="utf-8"))
             self.assertIn(f"[last30days] Saved output to {output_path.resolve()}", stderr.getvalue())
             self.assertIn(f"[last30days] Saved output to {comparison_saved.resolve()}", stderr.getvalue())
+            self.assertIn(f"[last30days] Saved output to {peer_saved.resolve()}", stderr.getvalue())
             self.assertIn(
-                f"[last30days] Comparison artifact set: main={comparison_saved.resolve()};",
+                f"[last30days] Comparison artifact set: main={comparison_saved.resolve()}; "
+                f"peers={peer_saved.resolve()}",
                 stderr.getvalue(),
             )
 
