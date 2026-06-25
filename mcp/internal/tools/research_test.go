@@ -97,6 +97,14 @@ func TestBoolArgument(t *testing.T) {
 	}
 }
 
+func TestResearchRunArgsIncludesNoBrowserCookies(t *testing.T) {
+	args := researchRunArgs("OpenAI", "compact", false)
+	want := []string{"OpenAI", "--emit=compact", "--no-browser-cookies"}
+	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("args = %#v, want %#v", args, want)
+	}
+}
+
 func TestResearchHandlerValidationErrorsAreToolErrors(t *testing.T) {
 	// Validation failures are returned as MCP tool errors (not Go errors)
 	// so Claude sees a structured failure with a readable message rather

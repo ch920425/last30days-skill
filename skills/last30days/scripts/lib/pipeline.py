@@ -162,10 +162,15 @@ def available_sources(config: dict[str, Any], requested_sources: list[str] | Non
     return available
 
 
-def diagnose(config: dict[str, Any], requested_sources: list[str] | None = None) -> dict[str, Any]:
+def diagnose(
+    config: dict[str, Any],
+    requested_sources: list[str] | None = None,
+    *,
+    safe: bool = False,
+) -> dict[str, Any]:
     requested_sources = normalize_requested_sources(requested_sources)
     google_key = _google_key(config)
-    x_status = env.get_x_source_status(config, probe=True)
+    x_status = env.get_x_source_status(config, probe=not safe)
     native_web_backend = None
     if config.get("BRAVE_API_KEY"):
         native_web_backend = "brave"
@@ -185,6 +190,22 @@ def diagnose(config: dict[str, Any], requested_sources: list[str] | None = None)
     reasoning_provider_available = any(
         providers_status[name] for name in ("google", "openai", "xai", "openrouter")
     )
+    external_commands = {
+        "yt-dlp": bool(which("yt-dlp")),
+        "digg-pp-cli": bool(which("digg-pp-cli")),
+        "gh": bool(which("gh")),
+    }
+    credential_destinations = {
+        "global_env": str(env.CONFIG_FILE) if env.CONFIG_FILE else None,
+    }
+    browser_cookies = {
+        "mode": config.get("_BROWSER_COOKIE_MODE", "off"),
+        "browsers": list(config.get("_BROWSER_COOKIE_BROWSERS") or []),
+        "reads_values": False if safe else config.get("_BROWSER_COOKIE_MODE") == "read",
+    }
+    local_writes: list[dict[str, str]] = []
+    if config.get("LAST30DAYS_MEMORY_DIR"):
+        local_writes.append({"kind": "report", "path": str(config.get("LAST30DAYS_MEMORY_DIR"))})
     return {
         "providers": providers_status,
         "local_mode": not reasoning_provider_available,
@@ -201,6 +222,12 @@ def diagnose(config: dict[str, Any], requested_sources: list[str] | None = None)
         "has_scrapecreators": bool(config.get("SCRAPECREATORS_API_KEY")),
         "has_github": bool(config.get("GITHUB_TOKEN") or which("gh")),
         "available_sources": available_sources(config, requested_sources),
+        "safe": safe,
+        "config_source": config.get("_CONFIG_SOURCE"),
+        "browser_cookies": browser_cookies,
+        "external_commands": external_commands,
+        "credential_destinations": credential_destinations,
+        "local_writes": local_writes,
     }
 
 

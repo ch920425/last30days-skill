@@ -50,7 +50,7 @@ class TestRunAutoSetup:
         mock_which.return_value = "/usr/local/bin/yt-dlp"
 
         config = {}
-        results = setup_wizard.run_auto_setup(config)
+        results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
 
         assert "x" in results["cookies_found"]
         assert results["cookies_found"]["x"] == "chrome"
@@ -69,6 +69,7 @@ class TestRunAutoSetup:
         results = setup_wizard.run_auto_setup(config)
 
         assert results["cookies_found"] == {}
+        mock_extract.assert_not_called()
         assert results["ytdlp_installed"] is False
         assert results["ytdlp_action"] == "no_homebrew"
 
@@ -80,7 +81,7 @@ class TestRunAutoSetup:
         mock_which.return_value = None
 
         config = {}
-        results = setup_wizard.run_auto_setup(config)
+        results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
 
         assert results["cookies_found"] == {}
 
@@ -99,7 +100,7 @@ class TestRunAutoSetup:
         mock_which.return_value = None
 
         config = {}
-        results = setup_wizard.run_auto_setup(config)
+        results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
 
         assert results["cookies_found"]["x"] == "firefox"
         assert results["cookies_found"]["truthsocial"] == "firefox"
@@ -522,12 +523,11 @@ class TestMaskApiKey:
 class TestCookieExtractionBrowsers:
     """Tests for env.cookie_extraction_browsers() — the shared browser policy."""
 
-    def test_default_excludes_chrome(self):
-        """FROM_BROWSER unset -> Firefox/Safari only, never Chrome (no prompt)."""
+    def test_default_disables_extraction(self):
+        """FROM_BROWSER unset -> no browser-cookie reads."""
         from lib import env
         browsers = env.cookie_extraction_browsers({})
-        assert "chrome" not in browsers
-        assert browsers == ["firefox", "safari"]
+        assert browsers == []
 
     def test_off_disables_extraction(self):
         from lib import env
@@ -550,13 +550,12 @@ class TestWizardDoesNotProbeChromeByDefault:
     def test_default_run_never_requests_chrome(self, _mock_which, mock_extract):
         setup_wizard.run_auto_setup({})
         requested_browsers = {call.args[0] for call in mock_extract.call_args_list}
-        assert "chrome" not in requested_browsers
-        assert requested_browsers <= {"firefox", "safari"}
+        assert requested_browsers == set()
 
     @patch("lib.cookie_extract.extract_cookies_with_source", return_value=None)
     @patch("shutil.which", return_value=None)
     def test_from_browser_auto_does_request_chrome(self, _mock_which, mock_extract):
-        setup_wizard.run_auto_setup({"FROM_BROWSER": "auto"})
+        setup_wizard.run_auto_setup({"FROM_BROWSER": "auto"}, allow_browser_cookies=True)
         requested_browsers = {call.args[0] for call in mock_extract.call_args_list}
         assert "chrome" in requested_browsers
 
