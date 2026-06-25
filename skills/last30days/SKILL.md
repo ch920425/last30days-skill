@@ -222,17 +222,21 @@ End of OUTPUT CONTRACT. The laws above are the contract; everything below is imp
 
 # HOW TO INVOKE THIS SKILL (READ FIRST, FOLLOW EVERY TIME)
 
-**STEP 0 - LOAD WEBSEARCH FIRST.** Your literal first tool call on every `/last30days` invocation MUST be:
+**STEP 0 - RESOLVE HOST WEB SEARCH FIRST.** Your first action on every `/last30days` invocation is to determine whether this agent session has a usable web-search tool. Most agent harnesses do: it may be built in, exposed as a deferred tool, or provided by an installed connector such as Brave, Firecrawl, Exa, Serper, or another search provider.
 
-```
-ToolSearch select:WebSearch
-```
+Use this capability rule:
 
-WebSearch is a **deferred tool** in Claude Code v2.1.114. The frontmatter of this file authorizes it (`allowed-tools: ... WebSearch`) but the runtime lists it as "schemas are NOT loaded." Calling WebSearch without `ToolSearch select:WebSearch` first will fail or do nothing. That friction is the documented cause of the second-most-common failure mode of this skill: the model sees "WebSearch is there but deferred," takes the low-friction path, skips Step 0.5 and 0.55, and runs the engine bare with only keyword search. The output looks fine but misses founder X timelines, GitHub repo activity, and subreddit-specific threads.
+- **If a web-search tool is available:** use it for Step 0.5 / 0.55 pre-research and Step 2 supplements. If your host requires loading, selecting, or enabling the web-search tool before use, do that using the host's mechanism. Do not fail the skill just because one particular schema lookup or tool name is unavailable; use the web-search capability you actually have.
 
-Load WebSearch first. No exceptions. Then run the first-run gate below before anything else.
+- **If no web-search tool is available in the agent session:** skip Step 0.55 and Step 0.75, and add `--auto-resolve` to the engine command. The engine will use configured web backends (`BRAVE_API_KEY`, `EXA_API_KEY`, `SERPER_API_KEY`, `PARALLEL_API_KEY`) or the keyless floor when available.
 
-**FIRST-RUN GATE — run this Bash command immediately after loading WebSearch, before reading the topic or doing any research:**
+When host web search is available, export `LAST30DAYS_NATIVE_SEARCH=1` in the same shell as the engine invocation so the engine does not also run the lower-quality keyless web floor. Leave it unset when the agent session has no web-search tool.
+
+Resolving this correctly prevents the second-most-common failure mode of this skill: the model skips Step 0.5 / 0.55 and runs the engine bare with only keyword search. The output looks fine but misses founder X timelines, GitHub repo activity, subreddit-specific threads, and current first-party positioning.
+
+After resolving host web search, run the first-run gate below before anything else.
+
+**FIRST-RUN GATE — run this Bash command immediately after resolving host web search, before reading the topic or doing any research:**
 
 ```bash
 grep -q "SETUP_COMPLETE=true" ~/.config/last30days/.env 2>/dev/null && echo "1" || echo "FIRST_RUN_DETECTED"
@@ -350,13 +354,13 @@ If the preflight script emits `ERROR: last30days v3 requires Python 3.12+` (or `
 
 WebSearch-only synthesis is not equivalent to running the engine — it misses Reddit community data, X/Twitter timelines, YouTube transcripts, TikTok, and Polymarket. Presenting it without disclosure misleads the user about what was actually searched. This is the same category of failure as a WebSearch-only run with no engine footer.
 
-**Native-search signal (web coverage).** If you (the hosting model) have your own web-search tool available — e.g. Claude Code's `WebSearch`, which STEP 0 loads — export `LAST30DAYS_NATIVE_SEARCH=1` in the same shell before invoking the engine:
+**Native-search signal (web coverage).** If you (the hosting model) have your own web-search tool available, export `LAST30DAYS_NATIVE_SEARCH=1` in the same shell before invoking the engine:
 
 ```bash
 export LAST30DAYS_NATIVE_SEARCH=1   # ONLY when you have a native web-search tool
 ```
 
-Your native search is better than the engine's keyless web fallback, so this tells the engine to skip that fallback and leave general web to you (you already run WebSearch supplements in Step 2). If you have NO native web-search tool (some non-Claude hosts and headless/cron paths), do **not** set this: the engine's keyless web floor supplies general-web coverage automatically. The rule is capability-based, not host-name-based — set it only when you genuinely have a better search, never to suppress the floor on a host that has nothing else.
+Your host search is better than the engine's keyless web fallback, so this tells the engine to skip that fallback and leave general web to you (you already run web-search supplements in Step 2). If you have NO web-search tool in the agent session, do **not** set this: the engine's keyless web floor supplies general-web coverage automatically. The rule is capability-based, not host-name-based — set it only when you genuinely have a better search, never to suppress the floor on a host that has nothing else.
 
 ## Configuration
 

@@ -287,15 +287,15 @@ When you invoke `/last30days` from Claude Code, Codex, or Gemini, the host model
 
 The search-source preference ladder, strict best-to-floor:
 
-1. **Host-native search** - Claude Code's `WebSearch`, and the equivalents on Codex / Gemini. Best results; used automatically on hosts that have it. Signalled to the engine via `LAST30DAYS_NATIVE_SEARCH=1` (the skill sets this for you when your host has a native search tool) so the engine does not run a worse search underneath it.
+1. **Host web search** - whatever web-search capability the agent session already has: built-in search, a deferred web-search tool that must be loaded first, or an installed connector such as Brave, Firecrawl, Exa, Serper, or another provider. Best results; used automatically on hosts that have it. A failed lookup for one specific tool name is not fatal when another web-search capability is available. Signalled to the engine via `LAST30DAYS_NATIVE_SEARCH=1` (the skill sets this for you when your agent session has web search) so the engine does not run a worse search underneath it.
 2. **Paid engine backend** - one of `BRAVE_API_KEY`, `EXA_API_KEY`, `SERPER_API_KEY`, `PARALLEL_API_KEY`, auto-detected in that order. Override per-run with `--web-backend=<name>`.
-3. **Keyless engine floor** - zero-key web search (DuckDuckGo, plus an optional SearXNG instance) and zero-key page fetch (Jina Reader). Runs only when the host has **no** native search **and** no paid key is set, so headless/cron and hosts without a built-in search tool still get general-web coverage. Force it explicitly with `--web-backend=keyless`.
+3. **Keyless engine floor** - zero-key web search (DuckDuckGo, plus an optional SearXNG instance) and zero-key page fetch (Jina Reader). Runs only when the agent session has **no** host web search **and** no paid key is set, so headless/cron and hosts without a search tool still get general-web coverage. Force it explicitly with `--web-backend=keyless`.
 
 Relevant env vars:
 
 | Var | Effect |
 | --- | --- |
-| `LAST30DAYS_NATIVE_SEARCH=1` | Tells the engine your host has native search; suppresses the keyless floor. Set automatically by the skill on capable hosts. Leave unset on hosts without a native search tool so the floor runs. |
+| `LAST30DAYS_NATIVE_SEARCH=1` | Tells the engine your agent session has host-side web search; suppresses the keyless floor. Set automatically by the skill when web search is available. Leave unset when the agent has no web-search tool so the floor runs. |
 | `LAST30DAYS_SEARXNG_URL=<base-url>` | Optional. A SearXNG instance used as the keyless-search fallback rung when DuckDuckGo returns nothing. |
 
 Privacy note: the keyless floor sends the query (to DuckDuckGo / your SearXNG instance) and any fetched URL (to Jina Reader) to those third parties. It is intended for public-research use; results may be cached snapshots. It never runs when native search or a paid backend is in play.
