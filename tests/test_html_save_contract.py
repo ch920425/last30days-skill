@@ -29,6 +29,8 @@ def test_html_deliverable_is_artifact_first_not_full_markdown_repeat():
     assert "the HTML artifact is the primary output" in text
     assert "use the exact synthesis draft you prepared for" in text
     assert "Do not paste it to chat first" in text
+    assert "the chat handoff is the single user-visible" in text
+    assert "printf '📎 Shareable brief saved to %s\\n'" not in text
     assert "do **not** paste the full Markdown report back into chat" in text
     assert "The user asked for an HTML deliverable" in text
 

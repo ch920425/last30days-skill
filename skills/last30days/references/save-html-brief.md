@@ -73,8 +73,9 @@ fi
 #    For a scoped --hiring-signals brief, --hiring-signals MUST be here too so
 #    the footer reflects the jobs-scoped board, not a generic crawl.
 
-# 3. Finish with the artifact handoff described below.
-printf '📎 Shareable brief saved to %s\n' "$HTML_PATH"
+# 3. Finish with the artifact handoff described below. Do not print the saved
+#    path from the shell block; the chat handoff is the single user-visible
+#    completion message.
 ```
 
 ## Chat handoff after saving
