@@ -147,6 +147,58 @@ class CliV3Tests(unittest.TestCase):
         self.assertEqual(["biosecurity"], args.topic)
         self.assertEqual([], extra)
 
+    def test_research_unknown_flag_fails_before_config_load(self):
+        with mock.patch.object(
+            cli.env, "get_config", side_effect=AssertionError("config should not load")
+        ), mock.patch.object(sys, "argv", ["last30days.py", "topic", "--save"]):
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as exc:
+                cli.main()
+        self.assertEqual(2, exc.exception.code)
+        self.assertIn("--save", stderr.getvalue())
+
+    def test_agent_is_skill_argument_not_python_cli_flag(self):
+        with mock.patch.object(
+            cli.env, "get_config", side_effect=AssertionError("config should not load")
+        ), mock.patch.object(sys, "argv", ["last30days.py", "topic", "--agent"]):
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as exc:
+                cli.main()
+        self.assertEqual(2, exc.exception.code)
+        self.assertIn("skill arguments", stderr.getvalue())
+
+    def test_agent_error_includes_other_unknown_flags(self):
+        with mock.patch.object(
+            cli.env, "get_config", side_effect=AssertionError("config should not load")
+        ), mock.patch.object(sys, "argv", ["last30days.py", "topic", "--agent", "--save"]):
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as exc:
+                cli.main()
+        self.assertEqual(2, exc.exception.code)
+        message = stderr.getvalue()
+        self.assertIn("--agent", message)
+        self.assertIn("--save", message)
+
+    def test_setup_passthrough_flags_remain_scoped_to_setup(self):
+        with mock.patch.object(cli.env, "get_config", return_value={}), \
+             mock.patch("lib.setup_wizard.run_github_auth", return_value={"status": "cancelled"}), \
+             mock.patch.object(sys, "argv", ["last30days.py", "setup", "--github"]):
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                rc = cli.main()
+        self.assertEqual(0, rc)
+
+    def test_setup_rejects_unknown_passthrough_flag_before_config_load(self):
+        with mock.patch.object(
+            cli.env, "get_config", side_effect=AssertionError("config should not load")
+        ), mock.patch.object(sys, "argv", ["last30days.py", "setup", "--bad"]):
+            stderr = io.StringIO()
+            with redirect_stderr(stderr), self.assertRaises(SystemExit) as exc:
+                cli.main()
+        self.assertEqual(2, exc.exception.code)
+        self.assertIn("--bad", stderr.getvalue())
+
     def test_ensure_supported_python_rejects_old_interpreter_with_actionable_error(self):
         stderr = io.StringIO()
         with redirect_stderr(stderr):

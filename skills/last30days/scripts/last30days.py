@@ -642,6 +642,44 @@ def _setup_allows_browser_cookies(args: argparse.Namespace, extra_argv: list[str
     )
 
 
+SETUP_PASSTHROUGH_FLAGS = {
+    "--allow-browser-cookies",
+    "--device-auth",
+    "--github",
+    "--openclaw",
+}
+
+SKILL_ONLY_FLAGS = {
+    "--agent",
+}
+
+
+def _validate_extra_argv(parser: argparse.ArgumentParser, topic: str, extra_argv: list[str]) -> None:
+    if not extra_argv:
+        return
+    if topic.lower() == "setup":
+        unsupported = [arg for arg in extra_argv if arg not in SETUP_PASSTHROUGH_FLAGS]
+        if unsupported:
+            parser.error(
+                "unsupported setup argument(s): "
+                + ", ".join(unsupported)
+                + f"; supported setup passthrough flags are {', '.join(sorted(SETUP_PASSTHROUGH_FLAGS))}"
+            )
+        return
+    skill_only = [arg for arg in extra_argv if arg in SKILL_ONLY_FLAGS]
+    other_unknown = [arg for arg in extra_argv if arg not in SKILL_ONLY_FLAGS]
+    if skill_only:
+        message = (
+            "unsupported Python CLI argument(s): "
+            + ", ".join(skill_only)
+            + "; these are skill arguments and must not be forwarded to scripts/last30days.py"
+        )
+        if other_unknown:
+            message += "; also unsupported: " + ", ".join(other_unknown)
+        parser.error(message)
+    parser.error("unsupported Python CLI argument(s): " + ", ".join(extra_argv))
+
+
 def _config_policy_for_args(args: argparse.Namespace, topic: str, extra_argv: list[str]) -> env.ConfigLoadPolicy:
     if args.no_browser_cookies:
         browser_mode = "off"
@@ -666,6 +704,7 @@ def main() -> int:
         os.environ["LAST30DAYS_DEBUG"] = "1"
 
     topic = " ".join(args.topic).strip()
+    _validate_extra_argv(parser, topic, extra_argv)
     config = env.get_config(policy=_config_policy_for_args(args, topic, extra_argv))
     _propagate_config_to_environ(config)
 

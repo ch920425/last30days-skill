@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
@@ -36,7 +37,7 @@ func Register(s *server.MCPServer, cfg Config) {
 			mcplib.WithString("topic", mcplib.Required(), mcplib.Description("The subject to research (a person, company, product, event, or general topic).")),
 			mcplib.WithString("emit", mcplib.Description("Output shape: 'compact' (default) for inline synthesis or 'html' to save a shareable brief alongside the response.")),
 			mcplib.WithBoolean("save", mcplib.Description("Persist the synthesis as a markdown report under ~/Documents/Last30Days/ (or LAST30DAYS_MEMORY_DIR if set).")),
-			mcplib.WithReadOnlyHintAnnotation(true),
+			mcplib.WithReadOnlyHintAnnotation(false),
 			mcplib.WithDestructiveHintAnnotation(false),
 			mcplib.WithOpenWorldHintAnnotation(true),
 		),
@@ -90,7 +91,11 @@ func makeResearchHandler(cfg Config) server.ToolHandlerFunc {
 func researchRunArgs(topic, emit string, save bool) []string {
 	runArgs := []string{topic, "--emit=" + emit, "--no-browser-cookies"}
 	if save {
-		runArgs = append(runArgs, "--save")
+		saveDir := os.Getenv("LAST30DAYS_MEMORY_DIR")
+		if saveDir == "" {
+			saveDir = "~/Documents/Last30Days"
+		}
+		runArgs = append(runArgs, "--save-dir", saveDir)
 	}
 	return runArgs
 }
