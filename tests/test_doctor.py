@@ -210,6 +210,39 @@ class UnconfiguredXWithBrokenNode(unittest.TestCase):
         self.assertNotIn("node", bird["fix"].lower())
 
 
+class CookieBackedXReadiness(unittest.TestCase):
+    """U2: when bird is installed and FROM_BROWSER will authenticate X at run
+    time, doctor reports X as Ready (not Off) with an honest, unverified note -
+    matching the real run behavior where browser cookies serve X fine even
+    though diagnose loads config in plan_only mode."""
+
+    def test_x_ready_when_bird_installed_and_from_browser(self):
+        with _Hermetic(), mock.patch("lib.bird_x.is_bird_installed", return_value=True):
+            report = doctor.build_report({"FROM_BROWSER": "auto"})
+        record = report["sources"]["x"]
+        self.assertEqual("ok", record["tier"])
+        self.assertEqual("ok", record["status"])
+        note = record["note"].lower()
+        self.assertIn("browser cookies", note)
+        self.assertIn("not verified", note)
+        self.assertIn("xai_api_key", note)
+
+    def test_x_stays_off_when_bird_installed_but_no_consent(self):
+        # bird installed but FROM_BROWSER=off -> no cookie path -> genuinely off.
+        with _Hermetic(), mock.patch("lib.bird_x.is_bird_installed", return_value=True):
+            report = doctor.build_report({"FROM_BROWSER": "off"})
+        record = report["sources"]["x"]
+        self.assertEqual("off", record["tier"])
+        self.assertEqual("unconfigured", record["status"])
+
+    def test_x_stays_off_when_consent_but_bird_missing(self):
+        # FROM_BROWSER set but bird not installed -> no runtime path -> off.
+        report = _build({"FROM_BROWSER": "auto"})
+        record = report["sources"]["x"]
+        self.assertEqual("off", record["tier"])
+        self.assertEqual("unconfigured", record["status"])
+
+
 class JsonShape(unittest.TestCase):
     """Scenario 2: documented per-source shape for every registered source."""
 

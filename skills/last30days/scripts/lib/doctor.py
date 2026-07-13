@@ -275,7 +275,26 @@ def _reddit_record(config):
 
 
 def _x_record(config):
-    return _chained_record("x", config)
+    record = _chained_record("x", config)
+    # Diagnose/doctor load config in plan_only mode, so browser cookies are not
+    # extracted and every X backend reads as statically missing -> unconfigured.
+    # But if bird is installed and FROM_BROWSER will authenticate X at run time,
+    # a normal run serves X fine (this is how the reporting user pulled 29 posts
+    # while doctor said "Off"). Reuse the existing shared predicate so doctor and
+    # diagnose cannot drift. It reads no cookie *values*, so it confirms a run
+    # will *attempt* browser auth, not that the session is currently valid -
+    # keep the note honest and point at the verified key-backed path.
+    if record["status"] == "unconfigured" and env.x_pending_browser_auth(
+        config, local_only=True
+    ):
+        record["status"] = health.OK
+        record["tier"] = TIER_BY_STATUS[health.OK]
+        record["note"] = (
+            "will use: bird (browser cookies; session not verified until a run "
+            "- add XAI_API_KEY for a verified, cookie-free path)"
+        )
+        record["fix"] = ""
+    return record
 
 
 def _youtube_record(config):
