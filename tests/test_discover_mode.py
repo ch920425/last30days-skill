@@ -514,6 +514,26 @@ def test_discovery_cli_shallow_skips_enrichment():
     ), "shallow mode must be judged on listing evidence, not enriched corpora"
 
 
+def test_discovery_cli_rejects_shallow_without_discover():
+    """--discover-shallow on a normal topic run must error, not silently no-op
+    into a full research pass (P2 from PR #816 review)."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "skills/last30days/scripts/last30days.py",
+            "AI agents",
+            "--discover-shallow",
+            "--mock",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert "--discover-shallow only applies to --discover runs" in result.stderr
+
+
 def test_discovery_cli_rejects_historical_as_of():
     result = subprocess.run(
         [

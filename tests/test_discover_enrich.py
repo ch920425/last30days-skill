@@ -111,6 +111,48 @@ def test_enrich_empty_nominations_returns_empty():
     assert pipeline.enrich_nominations([], config={}) == []
 
 
+def test_enrich_workers_are_daemon_threads():
+    """Stragglers must not block interpreter exit: every enrichment worker runs
+    as a daemon thread (the P1 from PR #816 review - a hung sub-run kept the
+    process alive past the wall-clock budget with non-daemon executor threads)."""
+    import threading
+
+    daemon_flags: list[bool] = []
+
+    def fake_run(*, topic, **_kwargs):
+        daemon_flags.append(threading.current_thread().daemon)
+        return _report(topic)
+
+    with mock.patch.object(pipeline, "run", side_effect=fake_run):
+        pipeline.enrich_nominations([_nomination("One"), _nomination("Two")], config={})
+
+    assert daemon_flags and all(daemon_flags)
+
+
+def test_enrich_concurrency_capped_by_semaphore():
+    """Never more than max_workers sub-runs in flight."""
+    import threading
+
+    lock = threading.Lock()
+    state = {"active": 0, "peak": 0}
+
+    def fake_run(*, topic, **_kwargs):
+        with lock:
+            state["active"] += 1
+            state["peak"] = max(state["peak"], state["active"])
+        time.sleep(0.05)
+        with lock:
+            state["active"] -= 1
+        return _report(topic)
+
+    nominations = [_nomination(f"T{i}") for i in range(6)]
+    with mock.patch.object(pipeline, "run", side_effect=fake_run):
+        enriched = pipeline.enrich_nominations(nominations, config={}, max_workers=2)
+
+    assert state["peak"] <= 2
+    assert all(entry.report is not None for entry in enriched)
+
+
 def test_enrichment_reaches_all_sources_by_default():
     """No user source filter -> sub-runs get requested_sources=None, which is
     what lets Techmeme, arXiv, YouTube, and Polymarket reach discovery despite

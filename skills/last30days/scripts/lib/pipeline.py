@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import queue
 import re
 import sqlite3
 import sys
@@ -736,39 +737,56 @@ def enrich_nominations(
             internal_subrun=True,
         )
 
+    # Daemon threads + a semaphore instead of ThreadPoolExecutor: executor
+    # threads are non-daemon and joined at interpreter shutdown, so one hung
+    # sub-run could keep the whole process alive long after its topic was
+    # downgraded to nomination-only. Daemon workers make the wall-clock budget
+    # real - stragglers cannot delay process exit. Abandonment is safe because
+    # internal_subrun passes write nothing to disk (no save, no library sync,
+    # no store), and every fetch layer inside run() carries its own timeout.
     enriched: dict[str, EnrichedTopic] = {}
-    executor = ThreadPoolExecutor(max_workers=max(1, max_workers))
-    try:
-        futures = {
-            executor.submit(_run_one, nomination): nomination
-            for nomination in nominations
-        }
+    results_queue: queue.Queue[tuple[Nomination, schema.Report | None, Exception | None]] = queue.Queue()
+    slots = threading.Semaphore(max(1, max_workers))
+
+    def _worker(nomination: Nomination) -> None:
+        with slots:
+            try:
+                results_queue.put((nomination, _run_one(nomination), None))
+            except Exception as exc:  # noqa: BLE001 - containment is the contract
+                results_queue.put((nomination, None, exc))
+
+    for nomination in nominations:
+        threading.Thread(
+            target=_worker,
+            args=(nomination,),
+            name=f"discover-enrich-{nomination.name[:32]}",
+            daemon=True,
+        ).start()
+
+    deadline = time.monotonic() + max(1.0, budget_seconds)
+    pending = len(nominations)
+    while pending and (remaining := deadline - time.monotonic()) > 0:
         try:
-            # as_completed's timeout is total elapsed for the batch - exactly
-            # the enrichment wall-clock budget.
-            for future in as_completed(futures, timeout=max(1.0, budget_seconds)):
-                nomination = futures[future]
-                try:
-                    report = future.result()
-                    enriched[nomination.name] = EnrichedTopic(
-                        nomination=nomination, report=report,
-                    )
-                except Exception as exc:
-                    enriched[nomination.name] = EnrichedTopic(
-                        nomination=nomination,
-                        error=f"{type(exc).__name__}: {exc}",
-                    )
-                    print(
-                        f"[Discover] enrichment failed for {nomination.name!r}: "
-                        f"{type(exc).__name__}: {exc}",
-                        file=sys.stderr,
-                    )
-        except TimeoutError:
-            pass  # budget expired; unfinished topics fall through as nomination-only
-    finally:
-        # Do not block on stragglers: unstarted futures are cancelled, running
-        # ones are abandoned (their HTTP layers carry their own timeouts).
-        executor.shutdown(wait=False, cancel_futures=True)
+            nomination, report, exc = results_queue.get(timeout=min(remaining, 0.5))
+        except queue.Empty:
+            continue
+        pending -= 1
+        if exc is None:
+            enriched[nomination.name] = EnrichedTopic(
+                nomination=nomination, report=report,
+            )
+        else:
+            enriched[nomination.name] = EnrichedTopic(
+                nomination=nomination,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            print(
+                f"[Discover] enrichment failed for {nomination.name!r}: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+    # Budget expired (or all done): unfinished topics fall through below as
+    # nomination-only; their daemon workers are abandoned and cannot block exit.
 
     results: list[EnrichedTopic] = []
     for nomination in nominations:

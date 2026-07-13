@@ -2105,6 +2105,15 @@ def _main(
             return 2
         return _run_discover(args, config)
 
+    if args.discover_shallow:
+        # Without --discover this flag would silently no-op into a full
+        # research run - reject it instead of ignoring the requested mode.
+        sys.stderr.write(
+            "[last30days] --discover-shallow only applies to --discover runs; "
+            "add --discover [domain] or drop the flag.\n"
+        )
+        return 2
+
     if args.drill:
         if topic:
             sys.stderr.write(
