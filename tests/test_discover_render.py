@@ -110,6 +110,21 @@ def test_best_community_comment_prefers_platform_normalized_strength():
     assert "short" not in comment
 
 
+def test_best_community_comment_strips_leading_quote_chars():
+    """A comment body that itself starts with a quote must not render as
+    doubled quotes inside the wrapping quotes."""
+    items = [schema.SourceItem(
+        item_id="a", source="reddit", title="t", body="t",
+        url="https://r.example/a", metadata={"top_comments": [
+            {"text": '"This much is clear: the quote should not double up', "score": 100, "author": "u/q"},
+        ]},
+    )]
+    comment = pipeline._best_community_comment(items)
+    assert comment is not None
+    assert '""' not in comment
+    assert comment.startswith('"This much is clear')
+
+
 def test_best_community_comment_none_when_no_comments():
     items = [schema.SourceItem(
         item_id="a", source="reddit", title="t", body="t", url="https://r.example/a",

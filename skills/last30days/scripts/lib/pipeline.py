@@ -821,6 +821,9 @@ def _best_community_comment(items: list[schema.SourceItem]) -> str | None:
     if best is None:
         return None
     _, body, author, score = best
+    # Comment bodies that themselves start/end with quote characters would
+    # render as doubled quotes inside our wrapping quotes.
+    body = body.strip('"“”‘’\'').strip()
     if len(body) > 200:
         body = body[:197].rsplit(" ", 1)[0] + "..."
     attribution = f" - {author}" if author else ""
