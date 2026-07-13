@@ -79,9 +79,14 @@ def _format_discovery_engagement(
 
 def render_discovery(report: schema.DiscoveryReport) -> str:
     """Render a compact topic-per-section discovery brief."""
+    title = (
+        f"# Trending discovery: {report.domain}"
+        if report.domain
+        else "# Trending now"
+    )
     lines = [
         *_render_badge(),
-        f"# Trending discovery: {report.domain}",
+        title,
         "",
         f"Window: {report.range_from} to {report.range_to}",
         f"Feeds: {', '.join(report.plan.sources)}",
@@ -91,16 +96,42 @@ def render_discovery(report: schema.DiscoveryReport) -> str:
     lines.append("")
 
     if not report.topics:
-        lines.extend(["No trending topic clusters survived this sweep.", ""])
+        if report.outcome == "nothing-solid":
+            lines.extend([
+                "**Nothing solid this window.** No topic cleared the confidence "
+                "floor - not enough cross-source confirmation or engagement to "
+                "call anything a trend, and ranked noise would be worse than an "
+                "honest empty result.",
+                "",
+            ])
+            if report.weak_signal:
+                lines.extend([
+                    f"Closest weak signal: {report.weak_signal} (sub-floor; "
+                    "single-source or too little engagement).",
+                    "",
+                ])
+        else:
+            lines.extend(["No trending topic clusters survived this sweep.", ""])
     for topic in report.topics:
         momentum = "New this week" if topic.momentum == "new-this-week" else "Building"
+        confirmation = (
+            f" · confirmed across {topic.corroboration_count} sources"
+            if topic.corroboration_count >= 2 else ""
+        )
         lines.extend([
             f"## {topic.rank}. {topic.name}",
             "",
-            f"**Momentum:** {momentum} · velocity {topic.velocity_score:,.2f}",
+            f"**Momentum:** {momentum} · velocity {topic.velocity_score:,.2f}{confirmation}",
             "",
             topic.why_spiking,
             "",
+        ])
+        if topic.top_comment:
+            lines.extend([
+                f"**Community voice:** {topic.top_comment}",
+                "",
+            ])
+        lines.extend([
             f"**Evidence:** {_format_discovery_engagement(topic.engagement_by_source)}",
             "",
             f"**Research next:** `{topic.command}`",

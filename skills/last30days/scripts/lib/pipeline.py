@@ -799,6 +799,39 @@ def _enriched_evidence_items(entry: EnrichedTopic) -> list[schema.SourceItem]:
     return entry.nomination.items
 
 
+def _best_community_comment(items: list[schema.SourceItem]) -> str | None:
+    """The strongest verbatim community comment across a topic's evidence,
+    formatted with attribution - the voice-of-the-people line on a trend card.
+
+    Vote strength is per-platform-normalized (signals.normalized_comment_vote)
+    so one viral platform's counts don't drown out the rest.
+    """
+    best: tuple[float, str, str | None, float | int | None] | None = None
+    for item in items:
+        comments = item.metadata.get("top_comments") or []
+        for comment in comments:
+            if not isinstance(comment, dict):
+                continue
+            body = (comment.get("excerpt") or comment.get("text") or comment.get("body") or "").strip()
+            if len(body) < 12:
+                continue
+            strength = signals.normalized_comment_vote(item.source, comment.get("score"))
+            if best is None or strength > best[0]:
+                best = (strength, body, comment.get("author"), comment.get("score"))
+    if best is None:
+        return None
+    _, body, author, score = best
+    if len(body) > 200:
+        body = body[:197].rsplit(" ", 1)[0] + "..."
+    attribution = f" - {author}" if author else ""
+    votes = (
+        f" ({int(score):,} votes)"
+        if isinstance(score, (int, float)) and not isinstance(score, bool) and score > 0
+        else ""
+    )
+    return f'"{body}"{attribution}{votes}'
+
+
 def run_discover(
     *,
     domain: str,
@@ -940,6 +973,8 @@ def run_discover(
             engagement_by_source=_discovery_engagement(evidence_items),
             command=f'/last30days "{nomination.name.replace(chr(34), chr(39))}"',
             evidence_urls=list(dict.fromkeys(item.url for item in evidence_items if item.url))[:5],
+            top_comment=_best_community_comment(evidence_items) if entry.report is not None else None,
+            corroboration_count=len(sources),
         ))
 
     outcome = "ok" if topics else "nothing-solid"
