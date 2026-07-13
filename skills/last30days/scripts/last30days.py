@@ -1295,6 +1295,10 @@ def _run_discover(args: argparse.Namespace, config: dict[str, object]) -> int:
         sys.stderr.write("[last30days] Warning: --synthesis-file is not used by discovery mode.\n")
 
     requested_sources = resolve_requested_sources(args.search, config)
+    # The user's original source boundary, honored by the per-topic research
+    # passes (which reach beyond the discovery-capable listing feeds - e.g.
+    # Techmeme, arXiv, YouTube, Polymarket). None = every available source.
+    enrich_requested_sources = list(requested_sources) if requested_sources else None
     if requested_sources:
         discovery_sources = [
             source for source in requested_sources
@@ -1330,6 +1334,7 @@ def _run_discover(args: argparse.Namespace, config: dict[str, object]) -> int:
             lookback_days=args.lookback_days or 30,
             as_of_date=args.as_of_date,
             enrich=not args.discover_shallow,
+            enrich_requested_sources=enrich_requested_sources,
         )
     except ValueError as exc:
         sys.stderr.write(f"[last30days] {exc}\n")

@@ -109,3 +109,64 @@ def test_enrich_runs_as_internal_subrun():
 
 def test_enrich_empty_nominations_returns_empty():
     assert pipeline.enrich_nominations([], config={}) == []
+
+
+def test_enrichment_reaches_all_sources_by_default():
+    """No user source filter -> sub-runs get requested_sources=None, which is
+    what lets Techmeme, arXiv, YouTube, and Polymarket reach discovery despite
+    having no river feed of their own."""
+    seen: dict[str, object] = {}
+
+    def fake_run(*, topic, **kwargs):
+        seen.update(kwargs)
+        return _report(topic)
+
+    raw = {
+        "id": "seed1",
+        "title": "AI agents breakthrough sweeps the industry",
+        "url": "https://example.com/seed1",
+        "hn_url": "https://news.ycombinator.com/item?id=1",
+        "author": "example",
+        "date": "2026-07-09",
+        "engagement": {"points": 900, "comments": 400},
+        "relevance": 0.9,
+    }
+    with mock.patch.object(pipeline, "available_sources", return_value=["hackernews"]), \
+         mock.patch.object(pipeline, "_fetch_discovery_source", return_value=([raw], None)), \
+         mock.patch.object(pipeline, "run", side_effect=fake_run):
+        pipeline.run_discover(
+            domain="AI agents", config={}, as_of_date="2026-07-10", enrich=True,
+        )
+
+    assert seen.get("internal_subrun") is True
+    assert seen.get("requested_sources") is None
+
+
+def test_user_source_boundary_holds_through_enrichment():
+    """--search reddit must bound the sub-runs too, not just the sweep."""
+    seen: dict[str, object] = {}
+
+    def fake_run(*, topic, **kwargs):
+        seen.update(kwargs)
+        return _report(topic)
+
+    raw = {
+        "id": "seed1",
+        "title": "AI agents breakthrough sweeps the industry",
+        "url": "https://reddit.com/r/x/seed1",
+        "subreddit": "example",
+        "date": "2026-07-09",
+        "engagement": {"score": 900, "num_comments": 400},
+        "selftext": "AI agents breakthrough",
+        "relevance": 0.9,
+    }
+    with mock.patch.object(pipeline, "available_sources", return_value=["reddit"]), \
+         mock.patch.object(pipeline, "_fetch_discovery_source", return_value=([raw], None)), \
+         mock.patch.object(pipeline, "run", side_effect=fake_run):
+        pipeline.run_discover(
+            domain="AI agents", config={}, as_of_date="2026-07-10",
+            requested_sources=["reddit"], enrich=True,
+            enrich_requested_sources=["reddit"],
+        )
+
+    assert seen.get("requested_sources") == ["reddit"]

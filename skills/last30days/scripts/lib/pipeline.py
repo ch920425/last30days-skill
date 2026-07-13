@@ -844,8 +844,17 @@ def run_discover(
     as_of_date: str | None = None,
     limit: int = 10,
     enrich: bool = False,
+    enrich_requested_sources: list[str] | None = None,
 ) -> schema.DiscoveryReport:
-    """Sweep category listings and rank the topics gaining velocity."""
+    """Sweep category listings and rank the topics gaining velocity.
+
+    ``requested_sources`` bounds the listing sweep (discovery-capable feeds
+    only). ``enrich_requested_sources`` bounds the per-topic research passes:
+    None means every available source - which is what lets Techmeme, arXiv,
+    YouTube, Polymarket, and community comments reach discovery despite having
+    no river feed of their own. Pass the user's original --search list here so
+    an explicit source boundary holds through enrichment too.
+    """
     from_date, to_date = dates.get_date_range(lookback_days, as_of_date=as_of_date)
     requested = normalize_requested_sources(requested_sources)
     unsupported = sorted(set(requested or []) - set(DISCOVERY_SOURCES))
@@ -923,6 +932,7 @@ def run_discover(
         enriched_entries = enrich_nominations(
             nominations,
             config=config,
+            requested_sources=enrich_requested_sources,
             mock=mock,
             lookback_days=lookback_days,
             as_of_date=as_of_date,

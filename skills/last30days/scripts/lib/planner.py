@@ -29,9 +29,10 @@ def build_discovery_plan(
     """Resolve a domain to the existing category-peer community feeds.
 
     An empty domain is global trending: sweep every river feed's own hot list
-    (r/all, HN front page, Digg) with no category scoping. X sits out of the
-    global nominate stage - its search lane needs a keyword and there is none -
-    and joins per-topic at the enrichment pass instead.
+    (r/all, HN front page, Digg) with no category scoping. Keyword-driven
+    sources (X, Techmeme, arXiv - none of which expose a river/front-page
+    lane) sit out of the global nominate stage and join per-topic at the
+    enrichment pass, where every nomination gets a full research run.
     """
     normalized_domain = " ".join(domain.split())
     if not normalized_domain:
