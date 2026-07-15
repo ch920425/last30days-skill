@@ -875,6 +875,39 @@ class FourStateAudit(unittest.TestCase):
         self.assertIn("13 items last run", text)
 
 
+class ThreadsOptIn(unittest.TestCase):
+    """U6: Threads reports opt-in state honestly against INCLUDE_SOURCES."""
+
+    def test_key_without_optin_is_could_be_on(self):
+        report = _build({"SCRAPECREATORS_API_KEY": "dummy-sc-secret-000"})
+        rec = report["sources"]["threads"]
+        self.assertEqual("opt-in", rec["status"])
+        self.assertEqual(doctor.AUDIT_COULD_BE_ON, rec["audit_state"])
+        self.assertIn("INCLUDE_SOURCES", rec["fix"])
+
+    def test_key_with_optin_is_working(self):
+        report = _build(
+            {
+                "SCRAPECREATORS_API_KEY": "dummy-sc-secret-000",
+                "INCLUDE_SOURCES": "tiktok,instagram,threads",
+            }
+        )
+        rec = report["sources"]["threads"]
+        self.assertEqual("ok", rec["status"])
+
+    def test_no_key_is_could_be_on_with_sc_fix(self):
+        rec = _build({})["sources"]["threads"]
+        self.assertEqual("unconfigured", rec["status"])
+        self.assertEqual(doctor.AUDIT_COULD_BE_ON, rec["audit_state"])
+
+    def test_tiktok_on_by_default_with_key_unchanged(self):
+        # Regression: TikTok/Instagram stay on-by-default with a key (WORKING),
+        # they are NOT opt-in-gated like Threads.
+        report = _build({"SCRAPECREATORS_API_KEY": "dummy-sc-secret-000"})
+        self.assertEqual("ok", report["sources"]["tiktok"]["status"])
+        self.assertEqual("ok", report["sources"]["instagram"]["status"])
+
+
 class CliHealth(unittest.TestCase):
     """U3: CLI-dependency health + techmeme/arxiv/trustpilot sources."""
 

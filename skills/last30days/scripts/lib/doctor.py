@@ -388,6 +388,28 @@ def _sc_gated_record(config: Dict[str, Any], purpose: str) -> Dict[str, Any]:
                    fix=_sc_fix())
 
 
+def _sc_optin_record(config: Dict[str, Any], source: str, purpose: str) -> Dict[str, Any]:
+    """SC-gated source that ALSO requires an INCLUDE_SOURCES opt-in to run.
+
+    Unlike ``_sc_gated_record`` (used by the on-by-default TikTok/Instagram),
+    a key alone is not enough here: the pipeline only fires this source when it
+    is in INCLUDE_SOURCES. Reporting a bare key as Ready is the Threads
+    false-Ready bug - this mirrors ``_linkedin_record``'s correct gating so
+    doctor and the pipeline cannot disagree.
+    """
+    requires = f"SCRAPECREATORS_API_KEY + INCLUDE_SOURCES={source}"
+    if not config.get("SCRAPECREATORS_API_KEY"):
+        return _record(status="unconfigured", requires=requires, fix=_sc_fix())
+    if source in env.include_sources(config):
+        return _record(status=health.OK, requires=requires,
+                       detail=f"SCRAPECREATORS_API_KEY present ({purpose})")
+    return _record(
+        status="opt-in", requires=requires,
+        fix=f"add {source} to INCLUDE_SOURCES (or request it via --search {source})",
+        note="key present; opt-in, never auto-activates",
+    )
+
+
 def _reddit_record(config):
     return _chained_record("reddit", config)
 
@@ -529,7 +551,9 @@ def _instagram_record(config):
 
 
 def _threads_record(config):
-    return _sc_gated_record(config, "threads")
+    # Threads needs the key AND an INCLUDE_SOURCES=threads opt-in to run, so it
+    # is opt-in-gated (not on-by-default like TikTok/Instagram).
+    return _sc_optin_record(config, "threads", "threads")
 
 
 def _bluesky_record(config):
