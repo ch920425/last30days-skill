@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from lib import env, pipeline
+
+
+@pytest.fixture(autouse=True)
+def _isolate_process_credentials(monkeypatch):
+    """Project-config tests must not inherit real machine credentials."""
+    for key in env.KEYCHAIN_KEYS:
+        monkeypatch.delenv(key, raising=False)
 
 
 def _neutral_secret_sources():
