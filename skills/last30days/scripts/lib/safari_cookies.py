@@ -99,7 +99,7 @@ def extract_safari_cookies_macos(
 
     Args:
         domain: Domain to match (substring match, e.g. "x.com")
-        cookie_names: List of cookie names to extract (e.g. ["auth_token", "ct0"])
+        cookie_names: List of cookie names to extract
 
     Returns:
         Dict mapping cookie name to value for found cookies, or None on failure.

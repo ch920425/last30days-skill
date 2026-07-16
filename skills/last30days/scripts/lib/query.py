@@ -16,7 +16,7 @@ PREFIXES = [
     'מהם המוצרים של', 'מה הם', 'מהם',
 ]
 
-# Multi-word suffixes (used by bird_x)
+# Multi-word suffixes used by source adapters
 SUFFIXES = [
     'best practices', 'use cases', 'prompt techniques',
     'prompting techniques', 'prompting tips',
@@ -92,7 +92,7 @@ def extract_core_subject(
         topic: Raw user query
         noise: Override noise word set (default: NOISE_WORDS)
         max_words: Cap result to N words (default: no cap)
-        strip_suffixes: Also strip trailing multi-word suffixes (bird_x uses this)
+        strip_suffixes: Also strip trailing multi-word suffixes
 
     Returns:
         Cleaned query string
@@ -190,7 +190,7 @@ def leading_mentions(text: Optional[str]) -> List[str]:
     leading run identifies who the post is addressed to. A mention later in the
     body is not a reply target and is intentionally ignored. Returns normalized
     (``@``-stripped, lowercased) handles, in order. Shared by every X-shaped
-    source adapter (bird, xquik) so leading-mention parsing has one definition.
+    source adapter so leading-mention parsing has one definition.
     """
     out: List[str] = []
     for token in (text or "").split():

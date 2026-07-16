@@ -261,11 +261,8 @@ Windows support is deferred until per-platform manifest entry points are sorted 
 clawhub install last30days-official
 ```
 
-For X/Twitter action workflows outside `/last30days` research, such as posting
-tweets or replies, follower export, media handling, monitors, and giveaway
-draws, use [TweetClaw](https://github.com/Xquik-dev/tweetclaw) as the companion
-OpenClaw plugin. TweetClaw is maintained by Xquik-dev and is listed only as an
-optional companion path, not a last30days dependency or endorsement.
+X access is read-only and uses public API v2 GET requests through the local
+`xurl` wrapper with `X_BEARER_TOKEN`.
 
 ### Manual (developer)
 
@@ -280,13 +277,13 @@ Reddit (with comments), Hacker News, Polymarket, and GitHub work immediately. Ze
 
 ## Bring your own keys
 
-These platforms don't have relationships with each other. X doesn't know what Reddit thinks. YouTube doesn't see TikTok. But you can bring your own API keys and browser tokens, and suddenly you have access to all of them at once.
+These platforms don't have relationships with each other. X doesn't know what Reddit thinks. YouTube doesn't see TikTok. Bring the required read-only keys to combine their public signals.
 
 | Sources | What you need | Cost |
 |---------|---------------|------|
 | Reddit (with comments) + HN + Polymarket + GitHub + StockTwits | Nothing | Free |
+| X public search | `X_BEARER_TOKEN` + local `xurl` wrapper | X API plan limits |
 | arXiv + Techmeme | Free CLIs, auto-installed by first-run setup | Free |
-| X / Twitter | Log into x.com in any browser, or set `XQUIK_API_KEY` / `XAI_API_KEY` | Browser cookies are free; keys are provider-specific |
 | YouTube | `brew install yt-dlp` | Free |
 | Bluesky | App password from bsky.app | Free |
 | TikTok + Instagram + Threads + Pinterest + LinkedIn + YouTube comments | ScrapeCreators key | 10,000 free calls, then PAYG |
@@ -304,11 +301,9 @@ On macOS you can store keys in the system Keychain instead of a `.env` file. The
 skills/last30days/scripts/setup-keychain.sh
 
 # Or store a single key by hand
-security add-generic-password -a "$USER" -s last30days-XAI_API_KEY -w "xai-..."
 
 # Inspect / clean up
 skills/last30days/scripts/setup-keychain.sh --list
-skills/last30days/scripts/setup-keychain.sh --delete XAI_API_KEY
 ```
 
 Items are stored under service name `last30days-<KEY>` for the current user. On non-Darwin platforms the loader is a no-op, so there is no behaviour change for Linux/Windows users.
@@ -361,7 +356,6 @@ Published a recurring AI update, market watch, or wonderfully narrow obsession w
 
 MIT license. No tracking. No analytics. Your research stays on your machine. 2,700+ tests.
 
-Built with Python 3.12+, yt-dlp, Node.js (vendored Bird client for X search), and ScrapeCreators API. v3 engine architecture by [@j-sperling](https://github.com/j-sperling).
 
 See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of community contributors and [CHANGELOG.md](CHANGELOG.md) for version history.
 

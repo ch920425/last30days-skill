@@ -14,7 +14,6 @@ This guide covers installing last30days on Hermes AI Agent.
 hermes skills install mvanhorn/last30days-skill/skills/last30days --force
 ```
 
-The explicit `skills/last30days` path fetches the skill straight from this repo's current default branch and deploys it under `~/.hermes/skills/`. `--force` is required because Hermes's install-time security scanner returns a `caution` verdict for this skill — it flags benign patterns such as reading your own API keys from the environment and calling `subprocess` to run `yt-dlp`/`bird`. `--force` accepts the caution verdict and installs (it also reinstalls over any existing copy).
 
 **Why the explicit path?** The shorter `hermes skills install mvanhorn/last30days-skill` currently resolves through the skills.sh index, which is serving an older cached snapshot of this repo (from before the skill moved under `skills/last30days/`). Use the explicit `.../skills/last30days` path above until the index re-crawls — tracked in [vercel-labs/skills#1602](https://github.com/vercel-labs/skills/issues/1602).
 
@@ -47,7 +46,6 @@ last30days "AI news" --days=7 --deep
 On first run, the skill will guide you through setup:
 
 1. **Auto setup** (~30 seconds)
-   - Scans browser cookies for X/Twitter
    - Checks/installs yt-dlp for YouTube
    - Best-effort install of `digg-pp-cli` for Digg AI-news clusters (via `@mvanhorn/printing-press-library`; binary lands in `$HOME/.local/bin` — ensure your Hermes gateway PATH includes it, or Digg stays off even after install)
    - Configures free sources (Reddit, HN, Polymarket)
@@ -58,7 +56,6 @@ On first run, the skill will guide you through setup:
    - Sign up at scrapecreators.com
 
 3. **Optional: API Keys**
-   - XAI_API_KEY for X/Twitter (alternative to browser cookies)
    - BRAVE_API_KEY for web search
 
 ## Available Sources
@@ -71,7 +68,6 @@ On first run, the skill will guide you through setup:
 - **Digg** - AI-news story clusters (requires `digg-pp-cli` on the agent PATH; auto-installed to `$HOME/.local/bin` during setup when `npx` is available)
 
 ### Requires API Key
-- **X/Twitter** - xAI API key or browser cookies
 - **TikTok** - ScrapeCreators API
 - **Instagram** - ScrapeCreators API
 - **Web Search** - Brave Search API

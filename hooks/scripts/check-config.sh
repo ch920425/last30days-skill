@@ -113,7 +113,7 @@ load_keychain_presence() {
   fi
   [[ -n "$user" ]] || return 0
 
-  for key in SETUP_COMPLETE OPENAI_API_KEY SCRAPECREATORS_API_KEY AUTH_TOKEN CT0 XAI_API_KEY BSKY_HANDLE EXA_API_KEY; do
+  for key in SETUP_COMPLETE OPENAI_API_KEY SCRAPECREATORS_API_KEY X_BEARER_TOKEN BSKY_HANDLE EXA_API_KEY; do
     env_var="ENV_${key}"
     current="${!env_var:-}"
     if [[ -z "$current" ]]; then
@@ -180,7 +180,7 @@ if command -v yt-dlp &>/dev/null; then
 fi
 
 # If setup has never been run, show welcome message for new users
-if [[ -z "$SETUP_COMPLETE" && -z "$CONFIG_FILE" && -z "${ENV_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}" && -z "${ENV_SCRAPECREATORS_API_KEY:-${SCRAPECREATORS_API_KEY:-}}" && -z "${ENV_AUTH_TOKEN:-${AUTH_TOKEN:-}}" && -z "${ENV_XAI_API_KEY:-${XAI_API_KEY:-}}" ]]; then
+if [[ -z "$SETUP_COMPLETE" && -z "$CONFIG_FILE" && -z "${ENV_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}" && -z "${ENV_SCRAPECREATORS_API_KEY:-${SCRAPECREATORS_API_KEY:-}}" && -z "${ENV_X_BEARER_TOKEN:-${X_BEARER_TOKEN:-}}" ]]; then
   # printf, NOT cat-with-heredoc: see the bash 5.3 heredoc deadlock note above.
   if [[ -n "$HAS_YTDLP" ]]; then
     # YouTube is already working via the on-system yt-dlp binary — don't list
@@ -208,17 +208,13 @@ fi
 
 # Setup done but check for ScrapeCreators
 HAS_SCRAPECREATORS="${ENV_SCRAPECREATORS_API_KEY:-${SCRAPECREATORS_API_KEY:-}}"
-HAS_X=""
-if [[ -n "${ENV_AUTH_TOKEN:-${AUTH_TOKEN:-}}" && -n "${ENV_CT0:-${CT0:-}}" ]]; then
-  HAS_X="yes"
-fi
-HAS_XAI="${ENV_XAI_API_KEY:-${XAI_API_KEY:-}}"
+HAS_X="${ENV_X_BEARER_TOKEN:-${X_BEARER_TOKEN:-}}"
 HAS_BSKY="${ENV_BSKY_HANDLE:-${BSKY_HANDLE:-}}"
 HAS_EXA="${ENV_EXA_API_KEY:-${EXA_API_KEY:-}}"
 
 # Count active sources
 SOURCE_COUNT=2  # HN + Polymarket are always free
-if [[ -n "$HAS_X" || -n "$HAS_XAI" ]]; then
+if [[ -n "$HAS_X" ]]; then
   SOURCE_COUNT=$((SOURCE_COUNT + 1))
 fi
 # Reddit public JSON always works

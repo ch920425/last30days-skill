@@ -22,9 +22,9 @@
       "sensitive": true
     },
     {
-      "name": "xAI API Key",
-      "description": "xAI API Key for X/Twitter search (optional)",
-      "envVar": "XAI_API_KEY",
+      "name": "X Bearer Token",
+      "description": "Bearer token for public X API v2 GET search (optional)",
+      "envVar": "X_BEARER_TOKEN",
       "sensitive": true
     },
     {
@@ -49,18 +49,6 @@
       "name": "Apify API Token",
       "description": "Apify API Token (optional legacy)",
       "envVar": "APIFY_API_TOKEN",
-      "sensitive": true
-    },
-    {
-      "name": "Twitter AUTH_TOKEN",
-      "description": "Twitter browser AUTH_TOKEN cookie for direct X search (optional)",
-      "envVar": "AUTH_TOKEN",
-      "sensitive": true
-    },
-    {
-      "name": "Twitter CT0",
-      "description": "Twitter browser CT0 cookie (optional, pair with AUTH_TOKEN)",
-      "envVar": "CT0",
       "sensitive": true
     }
   ]

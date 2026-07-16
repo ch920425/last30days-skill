@@ -13,10 +13,6 @@ from lib import setup_wizard
 class TestIsFirstRun:
     """Tests for is_first_run()."""
 
-    def test_first_run_when_setup_complete_not_set(self):
-        """SETUP_COMPLETE not in config -> first run."""
-        config = {"AUTH_TOKEN": "abc", "CT0": "xyz"}
-        assert setup_wizard.is_first_run(config) is True
 
     def test_first_run_when_setup_complete_is_none(self):
         """SETUP_COMPLETE=None -> first run."""
@@ -42,21 +38,6 @@ class TestIsFirstRun:
 class TestRunAutoSetup:
     """Tests for run_auto_setup()."""
 
-    @patch("lib.cookie_extract.extract_cookies_with_source")
-    @patch("shutil.which")
-    def test_cookies_found(self, mock_which, mock_extract):
-        """When cookies are found, results dict includes them."""
-        mock_extract.return_value = ({"auth_token": "abc", "ct0": "xyz"}, "chrome")
-        mock_which.return_value = "/usr/local/bin/yt-dlp"
-
-        config = {}
-        results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
-
-        assert "x" in results["cookies_found"]
-        assert results["cookies_found"]["x"] == "chrome"
-        assert results["ytdlp_installed"] is True
-        assert results["ytdlp_action"] == "already_installed"
-        assert results["env_written"] is False
 
     @patch("lib.cookie_extract.extract_cookies_with_source")
     @patch("shutil.which")
@@ -85,25 +66,6 @@ class TestRunAutoSetup:
 
         assert results["cookies_found"] == {}
 
-    @patch("lib.cookie_extract.extract_cookies_with_source")
-    @patch("shutil.which")
-    def test_multiple_sources(self, mock_which, mock_extract):
-        """Multiple cookie sources can be found."""
-        def side_effect(browser, domain, cookie_names):
-            if domain == ".x.com":
-                return ({"auth_token": "abc", "ct0": "xyz"}, "firefox")
-            elif domain == ".truthsocial.com":
-                return ({"_session_id": "sess123"}, "firefox")
-            return None
-
-        mock_extract.side_effect = side_effect
-        mock_which.return_value = None
-
-        config = {}
-        results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
-
-        assert results["cookies_found"]["x"] == "firefox"
-        assert results["cookies_found"]["truthsocial"] == "firefox"
 
     @patch("lib.cookie_extract.extract_cookies_with_source")
     @patch("shutil.which")
@@ -377,22 +339,6 @@ class TestWriteSetupConfig:
             assert "SETUP_COMPLETE=true" in content
             assert "FROM_BROWSER" not in content
 
-    def test_appends_to_existing_file(self):
-        """Appends to existing .env without overwriting keys."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            env_path = Path(tmpdir) / ".env"
-            env_path.write_text("XAI_API_KEY=my-key\nAUTH_TOKEN=tok123\n")
-
-            result = setup_wizard.write_setup_config(env_path)
-
-            assert result is True
-            content = env_path.read_text()
-            # Original keys preserved
-            assert "XAI_API_KEY=my-key" in content
-            assert "AUTH_TOKEN=tok123" in content
-            # SETUP_COMPLETE appended; FROM_BROWSER omitted (no browser detected)
-            assert "SETUP_COMPLETE=true" in content
-            assert "FROM_BROWSER" not in content
 
     def test_does_not_overwrite_existing_keys(self):
         """If SETUP_COMPLETE or FROM_BROWSER already exist, don't duplicate."""

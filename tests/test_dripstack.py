@@ -23,11 +23,11 @@ def _api_item(**overrides):
 
 
 def test_dripstack_absent_from_available_sources_by_default():
-    assert "dripstack" not in pipeline.available_sources({}, None, x_pending=False)
+    assert "dripstack" not in pipeline.available_sources({}, None)
 
 
 def test_dripstack_available_only_when_explicitly_requested():
-    available = pipeline.available_sources({}, ["dripstack"], x_pending=False)
+    available = pipeline.available_sources({}, ["dripstack"])
     assert "dripstack" in available
 
 
@@ -112,20 +112,20 @@ def test_dripstack_activates_via_persisted_include_sources():
     """INCLUDE_SOURCES is the .env checkbox for persistent opt-ins (the
     LinkedIn/Perplexity pattern); dripstack must honor it, not only --search."""
     available = pipeline.available_sources(
-        {"INCLUDE_SOURCES": "dripstack"}, None, x_pending=False
+        {"INCLUDE_SOURCES": "dripstack"}, None
     )
     assert "dripstack" in available
 
 
 def test_unrelated_include_sources_keeps_dripstack_off():
     available = pipeline.available_sources(
-        {"INCLUDE_SOURCES": "linkedin,tiktok"}, None, x_pending=False
+        {"INCLUDE_SOURCES": "linkedin,tiktok"}, None
     )
     assert "dripstack" not in available
 
 
 def test_include_sources_tolerates_whitespace_around_commas():
     available = pipeline.available_sources(
-        {"INCLUDE_SOURCES": "linkedin, dripstack"}, None, x_pending=False
+        {"INCLUDE_SOURCES": "linkedin, dripstack"}, None
     )
     assert "dripstack" in available

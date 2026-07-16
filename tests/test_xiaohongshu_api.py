@@ -180,7 +180,7 @@ def test_xiaohongshu_activates_via_persisted_include_sources(monkeypatch):
     monkeypatch.setattr(_env, "is_xiaohongshu_available", probe)
 
     available = _pipeline.available_sources(
-        {"INCLUDE_SOURCES": "xiaohongshu"}, None, x_pending=False
+        {"INCLUDE_SOURCES": "xiaohongshu"}, None
     )
 
     assert "xiaohongshu" in available
@@ -194,7 +194,7 @@ def test_xiaohongshu_probe_never_fires_without_any_opt_in(monkeypatch):
     probe = _mock.Mock(return_value=True)
     monkeypatch.setattr(_env, "is_xiaohongshu_available", probe)
 
-    available = _pipeline.available_sources({}, None, x_pending=False)
+    available = _pipeline.available_sources({}, None)
 
     assert "xiaohongshu" not in available
     probe.assert_not_called()

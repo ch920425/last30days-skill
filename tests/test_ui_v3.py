@@ -7,13 +7,6 @@ from lib import ui
 
 
 class PromoMessageTests(unittest.TestCase):
-    def test_x_promo_mentions_browser_support_and_fallbacks(self):
-        msg = ui.PROMO_SINGLE_KEY["x"]
-        self.assertIn("Firefox", msg, "Firefox should be listed as supported")
-        self.assertIn("Windows", msg, "Windows limitation should be mentioned")
-        self.assertIn("FROM_BROWSER=auto", msg, "Chrome opt-in should be mentioned")
-        self.assertIn("AUTH_TOKEN", msg, "AUTH_TOKEN/CT0 fallback should be listed")
-        self.assertIn("XAI_API_KEY", msg, "XAI_API_KEY fallback should be listed")
 
     def test_x_promo_does_not_say_firefox_or_safari_without_qualification(self):
         msg = ui.PROMO_SINGLE_KEY["x"]
@@ -30,25 +23,6 @@ class PromoMessageTests(unittest.TestCase):
 
 
 class UiV3Tests(unittest.TestCase):
-    def test_show_diagnostic_banner_uses_v3_source_model(self):
-        diag = {
-            "available_sources": ["grounding", "youtube"],
-            "providers": {"google": True, "openai": False, "xai": False},
-            "x_backend": None,
-            "bird_installed": True,
-            "bird_authenticated": False,
-            "bird_username": None,
-            "native_web_backend": "brave",
-        }
-        with mock.patch.object(ui, "IS_TTY", False):
-            stderr = io.StringIO()
-            with redirect_stderr(stderr):
-                ui.show_diagnostic_banner(diag)
-        output = stderr.getvalue()
-        self.assertIn("Reddit", output)
-        self.assertIn("unavailable", output)
-        self.assertIn("Add AUTH_TOKEN/CT0 or XAI_API_KEY", output)
-        self.assertIn("brave API available", output)
 
     def test_build_nux_message_mentions_v3_unlock_paths(self):
         text = ui._build_nux_message(

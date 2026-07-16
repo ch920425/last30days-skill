@@ -17,14 +17,11 @@ metadata:
       optionalEnv:
         - SCRAPECREATORS_API_KEY
         - OPENAI_API_KEY
-        - XAI_API_KEY
         - OPENROUTER_API_KEY
         - PERPLEXITY_API_KEY
         - PARALLEL_API_KEY
         - BRAVE_API_KEY
         - APIFY_API_TOKEN
-        - AUTH_TOKEN
-        - CT0
         - BSKY_HANDLE
         - BSKY_APP_PASSWORD
         - TRUTHSOCIAL_TOKEN
@@ -96,6 +93,12 @@ If the SKILL.md path you just Read contains `/.claude/plugins/marketplaces/` AND
 ---
 
 # SKILL CONTRACT — READ BEFORE ANY TOOL CALL
+
+**MANDATORY standing rule.** For a health check, "is X working", "why is a source missing", or "what's broken", run `doctor --cached --json` first. The
+cache lives at `doctor-cache.json` and uses `LAST30DAYS_DOCTOR_TTL`. Announce
+the predicted `active_backend`. Re-run live only when the cache is stale or a
+login-backed source is degraded; a degraded login-backed source must never be
+reported as healthy from stale cache.
 
 You are inside the `/last30days` SKILL. This is a specific research tool with a 1400+ line instruction contract (the rest of this file) that defines EXACTLY how to produce the research output. It is not a generic "last 30 days of X" research prompt. Do NOT treat `/last30days` as a search keyword you can improvise against.
 
@@ -279,7 +282,6 @@ grep -q "SETUP_COMPLETE=true" ~/.config/last30days/.env 2>/dev/null && echo "1" 
 This emits exactly one token: `1` or `FIRST_RUN_DETECTED`, never both.
 
 - Output is `1` → setup is complete. Continue to the branching rule below.
-- Output is `FIRST_RUN_DETECTED` → this is a first run. Jump immediately to `## Step 0: First-Run Setup Wizard` and complete it **before doing any topic research**. Do NOT proceed to Step 0.5, do NOT load WebSearch supplements, do NOT synthesize anything. The wizard installs yt-dlp (YouTube), the Digg CLI (via `npx`), and extracts browser cookies for X/Twitter and other sources. Skipping it produces a degraded WebSearch-only result that misrepresents the skill's capability to the user.
 
 **Named failure mode (2026-06-22, first-run setup skip - Fredy Montero run):** Model read "proceed to Step 0.5" in the branching rule and jumped there directly, bypassing `## Step 0: First-Run Setup Wizard` at line ~339. Result: no browser cookie extraction, no yt-dlp, no Digg CLI install, WebSearch-only synthesis with no X/YouTube/TikTok data. Root cause: the branching rule named Step 0.5 as the next step without mentioning the wizard. Fix: this gate and the updated branching rule below.
 
@@ -309,7 +311,6 @@ If your Bash call to `last30days.py` does NOT include the FULL pre-flight checkl
 
 # last30days v3.15.0: Research Any Topic from the Last 30 Days
 
-> **Permissions overview:** Reads public web/platform data and optionally saves research briefings to `LAST30DAYS_MEMORY_DIR` (defaults to `~/Documents/Last30Days`). X/Twitter search uses optional user-provided tokens (AUTH_TOKEN/CT0 env vars). Bluesky search uses optional app password (BSKY_HANDLE/BSKY_APP_PASSWORD env vars - create at bsky.app/settings/app-passwords). On hosts with `uv` and no Python 3.12+, the preflight may install a uv-managed CPython 3.12 (one-time ~28MB download, announced on stderr). All credential usage and data writes are documented in the [Security & Permissions](#security--permissions) section.
 
 Research ANY topic across Reddit, X, YouTube, and other sources. Surface what people are actually discussing, recommending, betting on, and debating right now.
 
@@ -431,7 +432,7 @@ When both `LAST30DAYS_API_KEY` and `LAST30DAYS_API_BASE` are set, the engine run
 
 **CRITICAL: ALWAYS execute Step 0 BEFORE Step 1, even when the user provided a topic.** If the user typed `/last30days Mercer Island`, you MUST run the wizard BEFORE any research. The topic is preserved - research runs immediately after the wizard completes. Do NOT skip the wizard because a topic was provided. It takes about 30 seconds and only runs once, ever.
 
-**You are the conversational driver.** The Python setup script does only mechanical work (cookie reads, tool installs, the GitHub device-auth flow) - it CANNOT prompt the user, because it runs as a non-interactive subprocess. So consent happens HERE, in chat: you ask, the user answers, and you gate each subprocess call on the answer. Do NOT just run `setup` and report the result - that is the silent-onboarding regression this section exists to prevent.
+**You are the conversational driver.** The Python setup script does mechanical tool installation and optional non-X provider setup. It cannot prompt the user, so consent for any optional external service happens here in chat.
 
 **First-run detection (silent, no commands, no output to user):**
 - If `SETUP_COMPLETE=true` is available from process env, project config (`.claude/last30days.env`), global config (`~/.config/last30days/.env`), or the setup check reports configured credentials, skip Step 0 entirely and go to Step 1 (CRITICAL: Parse User Intent below). Do NOT announce that setup is complete. The user does not need a status message on every run.
@@ -439,8 +440,7 @@ When both `LAST30DAYS_API_KEY` and `LAST30DAYS_API_BASE` are set, the engine run
 - If no setup marker or credential source is present, this is a first run.
 
 **Named onboarding contracts:**
-- *(2026-06-22, silent-wizard regression - Fredy Montero run):* a prior version said "Run `setup` ... follow the wizard's prompts end-to-end." But `run_auto_setup()` has NO prompts - it extracts cookies, installs yt-dlp + Digg, and writes `SETUP_COMPLETE` with zero interaction. The model ran the silent path, never asked cookie consent, never surfaced the macOS Full Disk Access fix, and never offered the ScrapeCreators signup. Consent must be conversational.
-- *(2026-06-22, NUX restoration):* the original v3.0.0 Claude Code wizard was a guided, modal-driven flow (welcome → Auto/Manual/Skip → cookie consent → ScrapeCreators offer → source opt-in → first-topic picker) that eroded over time. It is restored below as the **Claude Code Modal Flow**. Do NOT collapse it back into a bare prose call - the guided modals are the feature. Reference capture: `docs/reference/old-nux-wizard-v3.0.0.md`.
+- Keep the first-run setup visible: explain optional installs and third-party services before running them.
 
 **Platform split - run exactly ONE branch:**
 - **If you HAVE WebSearch and AskUserQuestion (Claude Code):** run the **Claude Code Modal Flow** immediately below.
@@ -462,7 +462,7 @@ Question:
 How would you like to set up?"
 
 Options:
-- "Auto setup (~30s)" - description: "Scan browser cookies for X + install yt-dlp (YouTube), Digg, arXiv, Techmeme. Reddit/HN/Polymarket/GitHub/Web work out of the box. Add TikTok + Instagram after via ScrapeCreators (10k free calls)."
+- "Auto setup (~30s)" - description: "Install yt-dlp (YouTube), Digg, arXiv, and Techmeme. Public X search is available when X_BEARER_TOKEN is set."
 - "Manual setup" - description: "Show me each source and credential to configure by hand."
 - "Skip for now" - description: "Just the free no-setup sources: Reddit (with comments), HN, Polymarket, GitHub, Web."
 
@@ -472,16 +472,8 @@ Options:
 
 **If the user picks Auto setup:**
 
-Get cookie consent first. Check if `BROWSER_CONSENT=true` already exists in `~/.config/last30days/.env`; if so, skip the consent prompt and run `setup --allow-browser-cookies` directly. Otherwise **call AskUserQuestion:**
-Question: "Auto setup installs the free CLIs either way - yt-dlp (YouTube), Digg, arXiv, and Techmeme. The only thing that needs your OK is reading your browser's x.com cookies to authenticate X/Twitter search: I check Chrome first (a one-time macOS Keychain prompt may appear; click Always Allow), then Firefox and Safari. Cookies are read live, never saved to disk. Include X?"
-Options (give each option the description shown):
-- "Yes - X cookies + all CLIs" - description: "Read x.com cookies for X/Twitter search AND install yt-dlp (YouTube), Digg, arXiv, and Techmeme." Run `"${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup --allow-browser-cookies` (relative to the skill root). Append `BROWSER_CONSENT=true` to `.env` after setup completes.
-- "Skip X - just the CLIs" - description: "No cookie reads. Still installs yt-dlp (YouTube), Digg, arXiv, and Techmeme." Run `FROM_BROWSER=off "${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup`.
-- "xAI API key for X instead" - description: "Use an api.x.ai key for X search (no cookie read), plus install yt-dlp (YouTube), Digg, arXiv, and Techmeme." Ask them to paste it, write `XAI_API_KEY` to `.env`, then run `FROM_BROWSER=off "${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup`.
+Run `"${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup`. This best-effort installs yt-dlp, Digg, arXiv, and Techmeme. It does not configure X credentials. If the user wants public X results, tell them to set `X_BEARER_TOKEN` in the trusted global config.
 
-The consented `setup --allow-browser-cookies` run extracts cookies (Chrome/Chromium family first via the Keychain with no Full Disk Access, then Firefox and Safari as fallbacks; the winning browser is pinned for future runs only when it is Firefox or Safari, so Chrome never re-triggers the Keychain prompt on later runs) and best-effort installs yt-dlp (YouTube), the free keyless Digg CLI (`digg-pp-cli` via `@mvanhorn/printing-press-library install digg --cli-only`; Digg activates only when the binary is on the **agent subprocess PATH**, typically `$HOME/.local/bin`; setup reports honestly if installed off-PATH; recommend-only if `npx` is unavailable), plus the free keyless arXiv and Techmeme CLIs. Show the user what was found and installed - including whether Digg landed on PATH (active) or off-PATH (installed but not yet active).
-
-**macOS Full Disk Access remediation (Safari fallback only).** Chrome and Firefox need no Full Disk Access; only the Safari fallback does. After the `setup` run, inspect its stderr. If it contains `Permission denied reading Cookies.binarycookies` and the platform is macOS, the OS blocked the Safari read - surface the fix instead of swallowing it: `macOS blocked the Safari cookie read. If your x.com login is in Chrome, you don't need this. To use Safari: System Settings > Privacy & Security > Full Disk Access > enable your terminal (or the Claude app), then I can retry.` Offer ONE retry of the `setup` command. If the user skips, continue.
 
 **Step 4: ScrapeCreators offer (every first run).** Show this as plain text, then a modal:
 
@@ -542,11 +534,7 @@ For hosts without interactive modal prompts (OpenClaw, Codex, Cursor, Gemini CLI
 
 **2. Permission preflight.** Run `"${LAST30DAYS_PYTHON:-python3}" "${SKILL_DIR}/scripts/last30days.py" --preflight` using the directory of the `SKILL.md` you loaded, then summarize the human-readable result before setup: config source, project config trust/ignore state, planned browser-cookie mode, planned writes, optional commands, and active/ignored endpoint overrides. This is safe: it does not read browser-cookie values, does not write setup/config/report files, and does not run research. For Codex desktop and other folder-mode hosts, if hidden `.claude/last30days.env` project config is shown as ignored, tell the user it remains ignored unless `LAST30DAYS_TRUST_PROJECT_CONFIG=1` is set from the process environment or global config. Do not block normal research on missing optional commands; describe them as optional coverage.
 
-**3. Cookie consent (ask BEFORE reading anything).** First check if `BROWSER_CONSENT=true` already exists in `~/.config/last30days/.env` (e.g. granted in a prior Claude Code session); if so, skip this prompt and run `setup --allow-browser-cookies` directly. Otherwise ask. Example: `I can read your browser cookies to unlock X/Twitter and other logged-in sources - I check Chrome first (a one-time macOS Keychain prompt may appear; click Always Allow), then Firefox and Safari. Want me to? (yes / no)` **Wait for the answer.**
-   - On **yes** → run `"${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup --allow-browser-cookies` (and append `BROWSER_CONSENT=true` to `.env` after it completes). Extracts cookies (Chrome/Chromium family first via the Keychain with no Full Disk Access, then Firefox and Safari; only a Firefox/Safari winner is pinned for later runs, so Chrome never re-prompts) and best-effort installs yt-dlp (YouTube), the free keyless Digg CLI (`digg-pp-cli` via `@mvanhorn/printing-press-library install digg --cli-only`; activates only when on the agent subprocess PATH, typically `$HOME/.local/bin`; reports honestly if off-PATH; recommend-only if `npx` is unavailable), plus the free keyless arXiv and Techmeme CLIs.
-   - On **no** → run `FROM_BROWSER=off "${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup`. Skips all cookie reads; still installs yt-dlp (YouTube), Digg, arXiv, and Techmeme, still writes `SETUP_COMPLETE`.
-
-**4. Full Disk Access remediation (macOS only).** After `setup`, inspect stderr. If it contains `Permission denied reading Cookies.binarycookies` on macOS, surface: `macOS blocked the cookie read. To enable X/Twitter: System Settings > Privacy & Security > Full Disk Access > enable your terminal (or the Claude app), then I can retry.` Offer ONE retry. If skipped, continue.
+**3. Run setup.** Run `"${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup`. It installs the optional free CLIs and writes `SETUP_COMPLETE`.
 
 **5. ScrapeCreators signup offer (every first run, consent BEFORE launching the browser).** Explain it grants 10,000 free calls that add TikTok and Instagram, plus a backup that keeps Reddit and YouTube working when they hit rate limits (a Reddit backup and a YouTube transcript fallback), that GitHub signup grants the full 10,000 free calls (more than the web form), and that it opens a GitHub authorization page where you enter a short code. Ask, e.g.: `Want to unlock TikTok, Instagram, and more? I can sign you up for ScrapeCreators with GitHub (10,000 free calls, ~20-30s) - it opens a browser and you enter a short code. (yes / no)` **Wait for the answer.**
    - On **yes** → two commands. FIRST run `"${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup --github-start` in the FOREGROUND - it returns in ~1-2s with a `Your GitHub code: XXXX-XXXX` line plus a JSON blob, copies the code to the clipboard, and opens the browser. Read the `user_code` from that output and immediately tell the user: the code, that it's on their clipboard so they can just paste it (Cmd+V) on the GitHub page - do not make them hunt for it. (If `status == "already_registered"`, stop here - their existing key is active. If the output said the clipboard copy failed, tell them to type the code.) THEN run `"${LAST30DAYS_PYTHON:-python3}" skills/last30days/scripts/last30days.py setup --github-poll` (background with a 5-min timeout, or foreground) and parse the **LAST** JSON line of its stdout for the final status. On success the engine persists the key automatically and returns `"persisted": true` with a MASKED `api_key` (never ask for or echo the raw key). Confirm the paid sources are active.
@@ -570,10 +558,7 @@ Shown when a Claude Code user picks "Manual setup", or for anyone who wants to c
 The magic of /last30days is Reddit comments + X posts together - and both are free. Add these to `~/.config/last30days/.env`:
 
 **X/Twitter (pick one - the most important source):**
-- `FROM_BROWSER=auto` - free. Reads your x.com login cookies live at search time (Firefox/Safari, never saved to disk).
-- `XAI_API_KEY=xxx` - no browser access needed. Get a key at api.x.ai. Best for servers.
-- `XQUIK_API_KEY=xxx` - keyless-style X via Xquik.
-- `AUTH_TOKEN=xxx` + `CT0=xxx` - paste your X cookies manually (x.com → F12 → Application → Cookies).
+- `X_BEARER_TOKEN=...` enables public X API v2 GET search through the local `xurl` wrapper.
 
 **Reddit (free, works out of the box):**
 - Public JSON gives threads + top comments with upvote counts. No setup required.
@@ -663,7 +648,6 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just Read
 
 **Reddit backend pin:** Reddit defaults to the free public backend with ScrapeCreators as a backup when `SCRAPECREATORS_API_KEY` is available. If the user says public Reddit is shallow, bot-gated, or missing nested comments, tell them they can set `LAST30DAYS_REDDIT_BACKEND=scrapecreators` alongside `SCRAPECREATORS_API_KEY` to make ScrapeCreators primary and keep public Reddit as fallback. Do not set this automatically for normal runs.
 
-**Doctor health check:** When the user asks for a health check ("is X working?", "why is a source missing?", "what's broken?", "did setup work?"), run `"${LAST30DAYS_PYTHON}" "${SKILL_DIR}/scripts/last30days.py" doctor` (append `--json` for the machine contract) and relay the audit and fix prescriptions. `doctor` renders a **four-state audit** - **WORKING** (verified this run/last run or keyless-always-on), **TURNED ON - UNVERIFIED** (configured/opted-in but no run evidence), **NOT WORKING** (configured but failing, or the last run errored), **COULD BE ON** (available, not yet configured) - one line per source, plus a **CLI-health** block for sources that need a downloaded binary and indented **backup/comment** sub-lanes. Two on-demand modes: `doctor --postmortem` reads the last run's `last-report.json` and reports what actually broke per source (Failed/Partial/Succeeded with fix hints) - reach for it right after a run that returned less than expected; `doctor --probe` runs a **bounded** live test (free HTTP + keyless CLI sources only; credit-gated sources are never probed) to verify WORKING instead of guessing, and the same bounded probe auto-fires on a plain `doctor` when there is no fresh run. Per-source probe deadline is `LAST30DAYS_DOCTOR_PROBE_TIMEOUT` (default 10s). **MANDATORY standing rule.** Before research that depends on login-backed sources (X via cookies, Reddit's ScrapeCreators backfill), consult `doctor --cached --json` — it serves the report cached at `~/.config/last30days/doctor-cache.json` within its TTL (`LAST30DAYS_DOCTOR_TTL` seconds, default 900) for the cost of one file read. Re-run live `doctor` only when the cache is stale or the previous run reported a degraded login-backed source. When X is in ACTIVE_SOURCES_LIST, announce its predicted backend from the report's `sources.x.active_backend` (e.g. "X will use: bird") in the pre-research status line.
 
 
 Then display (use "and more" if 5+ sources, otherwise list all with Oxford comma):
@@ -1864,14 +1848,11 @@ Headlines should be specific and newsy ("BULLY dropped and it's dominating", "Eu
 
 If the research output contains a `**🔍 Research Coverage:**` block, render it verbatim right before the stats block. This tells the user which core sources are missing and how to unlock them. Do NOT render this block if it is absent from the output (100% coverage = no nudge).
 
-**Just-in-time X unlock:** If X returned 0 results because no X auth is configured (no AUTH_TOKEN/CT0, no XAI_API_KEY, no FROM_BROWSER), offer to set it up right there:
 
 **Call AskUserQuestion:**
 Question: "X/Twitter wasn't searched. Want to unlock it?"
 Options:
-- "Scan my browser cookies (free)" - Get consent, run cookie scan, write BROWSER_CONSENT=true + FROM_BROWSER=auto to .env
-- "I have AUTH_TOKEN and CT0 from my browser" - Ask them to paste each value, then write AUTH_TOKEN=<value>\nCT0=<value> to .env
-- "I have an xAI API key" - Ask them to paste it, write XAI_API_KEY to .env
+- "Use public API v2" - Set `X_BEARER_TOKEN` in the trusted global config
 - "Skip for now"
 
 **THEN - Engine footer pass-through (right before invitation):**
@@ -2119,9 +2100,9 @@ Want another prompt? Just tell me what you're creating next.
 **What this skill does:**
 - Sends search queries to ScrapeCreators API (`api.scrapecreators.com`) for TikTok and Instagram search, and as a Reddit backup when public Reddit is unavailable (requires SCRAPECREATORS_API_KEY)
 - Legacy: Sends search queries to OpenAI's Responses API (`api.openai.com`) for Reddit discovery (fallback if no SCRAPECREATORS_API_KEY)
-- Sends search queries to X/Twitter via optional user-provided `AUTH_TOKEN`/`CT0` env vars, explicit browser-cookie opt-in (`FROM_BROWSER` or setup consent), xAI's API (`api.x.ai` by default), Xquik's API (`xquik.com` by default), or the official X API v2 via xurl CLI (OAuth2, auto-detected when installed and authenticated)
 - Sends search queries to Algolia HN Search API (`hn.algolia.com`) for Hacker News story and comment discovery (free, no auth)
 - Sends search queries to Polymarket Gamma API (`gamma-api.polymarket.com`) for prediction market discovery (free, no auth)
+- Sends public GET requests to X API v2 through the local `xurl` wrapper when `X_BEARER_TOKEN` is configured
 - Runs `yt-dlp` locally for YouTube search and transcript extraction (no API key, public data)
 - Sends search queries to ScrapeCreators API (`api.scrapecreators.com`) for TikTok and Instagram search, transcript/caption extraction (10,000 free calls, then PAYG)
 - Optionally sends search queries to Brave Search API, Parallel AI API, Perplexity API (`api.perplexity.ai`), or OpenRouter API for web search / synthesis
@@ -2134,7 +2115,7 @@ Want another prompt? Just tell me what you're creating next.
 
 **What this skill does NOT do:**
 - Does not post, like, or modify content on any platform
-- Does not access browser cookies unless explicitly configured or consented (`FROM_BROWSER`, manual X cookies, or setup with `--allow-browser-cookies`); `--preflight` and `--diagnose` do not read browser-cookie values
+- Does not use browser-session credentials for X
 - Does not use Codex ChatGPT auth as an OpenAI provider credential
 - Does not share API keys between providers
 - Does not log, cache, or write API keys to output files
@@ -2143,6 +2124,5 @@ Want another prompt? Just tell me what you're creating next.
 - TikTok and Instagram sources require SCRAPECREATORS_API_KEY (10,000 free calls, then PAYG). Reddit uses ScrapeCreators only as a backup when public Reddit is unavailable.
 - Agent hosts invoke the slash-command skill contract; if `--agent` appears in the user's slash-command arguments, treat it as skill-level mode guidance, not a Python CLI flag.
 
-**Bundled scripts:** `scripts/last30days.py` (main research engine), `scripts/lib/` (search, enrichment, rendering modules), `scripts/lib/vendor/bird-search/` (vendored X search client, MIT licensed)
 
 Review scripts before first use to verify behavior.

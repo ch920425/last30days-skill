@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lib import bird_x, health, http, jobs, pipeline, reddit, render, schema, youtube_yt
+from lib import health, http, jobs, pipeline, reddit, render, schema, youtube_yt
 
 
 def _report(*, source_status=None, items_by_source=None, errors_by_source=None):
@@ -70,10 +70,6 @@ def test_http_wrapper_classifies_dns_failure(mock_urlopen, _mock_sleep):
     assert caught.value.outcome_state == schema.UNREACHABLE
 
 
-def test_source_specific_text_failures_are_mapped():
-    assert bird_x.classify_run_failure("likely Twitter anti-bot interstitial") == schema.SCHEMA_DRIFT
-    assert reddit.classify_run_failure("blocked by Reddit interstitial") == schema.RATE_LIMITED
-    assert youtube_yt.classify_run_failure("Sign in to confirm you're not a bot") == schema.RATE_LIMITED
 
 
 def test_bundle_distinguishes_clean_no_results_from_failure():

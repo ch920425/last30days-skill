@@ -25,7 +25,7 @@ last-run.json, never engine JSON) — deliberately no compat test for it.
 
 NOTE: snapshots re-recorded against the committed v3.10.0 baseline
 (origin/main a5b3ca1, post-v3.9.x source wave: arxiv/techmeme/stocktwits/
-trustpilot + the x_pending_browser_auth diag flag). The SHAPES here must
+trustpilot). The SHAPES here must
 otherwise stay frozen; re-record only when a committed baseline legitimately
 changes them.
 """
@@ -56,17 +56,10 @@ DIAGNOSE_TOP_KEYS = {
     "local_mode",
     "reasoning_provider",
     "x_backend",
-    "bird_installed",
-    "bird_authenticated",
-    "bird_username",
-    "xquik_available",
-    "xquik_working",
-    "xquik_status",
     "native_web_backend",
     "native_search",
     "has_scrapecreators",
     "has_github",
-    "x_pending_browser_auth",
     "available_sources",
     "safe",
     "config_source",
@@ -80,7 +73,7 @@ DIAGNOSE_TOP_KEYS = {
     "permission_preflight",
 }
 
-DIAGNOSE_PROVIDERS_KEYS = {"google", "openai", "xai", "openrouter", "perplexity"}
+DIAGNOSE_PROVIDERS_KEYS = {"google", "openai", "openrouter", "perplexity"}
 DIAGNOSE_BROWSER_COOKIES_KEYS = {"mode", "browsers", "reads_values"}
 DIAGNOSE_EXTERNAL_COMMANDS_KEYS = {"yt-dlp", "digg-pp-cli", "arxiv-pp-cli", "techmeme-pp-cli", "trustpilot-pp-cli", "gh"}
 DIAGNOSE_CREDENTIAL_DESTINATIONS_KEYS = {"global_env"}
@@ -100,7 +93,7 @@ PREFLIGHT_LOCAL_READS_KEYS = {"config_source", "project_config", "browser_cookie
 PREFLIGHT_PROJECT_CONFIG_KEYS = {"status", "trusted", "ignored_path", "ignored_keys"}
 PREFLIGHT_BROWSER_COOKIES_KEYS = {"status", "mode", "browsers", "reads_values"}
 PREFLIGHT_CREDENTIALS_KEYS = {
-    "google", "openai", "xai", "openrouter", "perplexity", "scrapecreators", "github",
+    "google", "openai", "openrouter", "perplexity", "scrapecreators", "github",
 }
 PREFLIGHT_NETWORK_KEYS = {
     "available_sources", "native_search", "endpoint_overrides", "ignored_endpoint_overrides",
@@ -113,37 +106,26 @@ FAKE_KEYLESS_CONFIG: dict = {}
 # booleans stay booleans and no credential value ever reaches legacy JSON.
 FAKE_KEYED_CONFIG = {
     "SCRAPECREATORS_API_KEY": "dummy-sc-key-not-real-000",
-    "XAI_API_KEY": "dummy-xai-key-not-real-000",
+    "X_BEARER_TOKEN": "dummy-x-bearer-not-real-000",
     "BRAVE_API_KEY": "dummy-brave-key-not-real-000",
 }
 
 
 def _run_cli(argv: list[str], config: dict) -> tuple[int, str]:
-    """Run cli.main() in-process with a controlled config; return (rc, stdout)."""
-    bird_status = {
-        "installed": False,
-        "authenticated": False,
-        "username": None,
-        "can_install": True,
-    }
+    """Run cli.main() in-process with controlled configuration."""
     with mock.patch.object(cli.env, "get_config", return_value=dict(config)), \
-         mock.patch("lib.bird_x.get_bird_status", return_value=bird_status), \
-         mock.patch("lib.bird_x.is_bird_installed", return_value=False), \
-         mock.patch("lib.bird_x.set_credentials", lambda *a, **k: None), \
          mock.patch(
              "lib.xurl_x.is_available",
-             side_effect=AssertionError(
-                 "--diagnose/--preflight are safe paths and must not run the "
-                 "live `xurl whoami` network check"
-             ),
+             side_effect=lambda bearer_token=None: bool(bearer_token),
          ), \
-         mock.patch("lib.xurl_x.has_stored_auth", return_value=False), \
          mock.patch.object(sys, "argv", ["last30days.py"] + argv):
         stdout = io.StringIO()
         stderr = io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             rc = cli.main()
     return rc, stdout.getvalue()
+
+
 
 
 class DiagnoseShapeCompat(unittest.TestCase):

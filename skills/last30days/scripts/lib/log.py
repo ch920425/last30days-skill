@@ -17,7 +17,7 @@ def source_log(prefix: str, msg: str, *, tty_only: bool = True) -> None:
     """Log a source module message to stderr.
 
     Args:
-        prefix: Source label (e.g. "Reddit", "Bird").
+        prefix: Source label (e.g. "Reddit", "X").
         msg: Message text.
         tty_only: If True, only log when stderr is a TTY (avoids cluttering
                   non-interactive output like Claude Code).

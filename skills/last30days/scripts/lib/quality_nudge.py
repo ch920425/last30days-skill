@@ -40,9 +40,7 @@ def _is_x_active(config: dict, research_results: dict) -> bool:
 def _has_x_credentials(config: dict) -> bool:
     """Return True when any X/Twitter source credential is configured."""
     return bool(
-        config.get("AUTH_TOKEN")
-        or config.get("XAI_API_KEY")
-        or config.get("XQUIK_API_KEY")
+        config.get("X_BEARER_TOKEN")
     )
 
 
@@ -297,10 +295,10 @@ def _build_nudge_text(
 
     if "x" in core_missing:
         if "x" in core_errored:
-            x_fix = prescriptions.get("x", "cookies_expired")
+            x_fix = prescriptions.get("x", "bearer_failed")
             free_suggestions.append(f"X/Twitter errored - {x_fix.fix_nl}.")
         else:
-            x_fix = prescriptions.get("x", "cookies_missing")
+            x_fix = prescriptions.get("x", "bearer_missing")
             free_suggestions.append(
                 "X/Twitter: real-time posts with likes and reposts - the fastest "
                 f"signal for breaking topics. Three options: {x_fix.fix_nl}."

@@ -16,10 +16,7 @@ from unittest.mock import patch
 def _base_config(**overrides):
     """Return a minimal config dict."""
     config = {
-        "AUTH_TOKEN": None,
-        "CT0": None,
-        "XAI_API_KEY": None,
-        "XQUIK_API_KEY": None,
+        "X_BEARER_TOKEN": None,
         "SCRAPECREATORS_API_KEY": None,
     }
     config.update(overrides)
@@ -89,29 +86,29 @@ class TestBaseline:
         assert "Reddit with comments" not in q["nudge_text"]
 
 
-class TestXCookies:
-    """+X cookies -> 80%."""
+class TestXBearer:
+    """+X bearer token -> 80%."""
 
     def test_score_80(self):
-        q = _compute(config_overrides={"AUTH_TOKEN": "tok123"})
+        q = _compute(config_overrides={"X_BEARER_TOKEN": "tok123"})
         assert q["score_pct"] == 80
 
     def test_nudge_mentions_yt_only(self):
-        q = _compute(config_overrides={"AUTH_TOKEN": "tok123"})
+        q = _compute(config_overrides={"X_BEARER_TOKEN": "tok123"})
         assert "YouTube" in q["nudge_text"]
         assert "X/Twitter" not in q["nudge_text"]
 
 
-class TestXquikKey:
-    """+Xquik key -> 80% without browser-cookie or xAI credentials."""
+class TestXBearerAlternate:
+    """+X bearer token -> 80% without alternate X credentials."""
 
     def test_score_80(self):
-        q = _compute(config_overrides={"XQUIK_API_KEY": "xq_test"})
+        q = _compute(config_overrides={"X_BEARER_TOKEN": "xq_test"})
         assert q["score_pct"] == 80
         assert "x" in q["core_active"]
 
     def test_nudge_mentions_yt_only(self):
-        q = _compute(config_overrides={"XQUIK_API_KEY": "xq_test"})
+        q = _compute(config_overrides={"X_BEARER_TOKEN": "xq_test"})
         assert "YouTube" in q["nudge_text"]
         assert "X/Twitter" not in q["nudge_text"]
 
@@ -121,7 +118,7 @@ class TestXPlusYtdlp:
 
     def test_score_100(self):
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             ytdlp_installed=True,
         )
         assert q["score_pct"] == 100
@@ -129,7 +126,7 @@ class TestXPlusYtdlp:
     def test_nudge_is_none(self):
         """Full core coverage with zero paid keys."""
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             ytdlp_installed=True,
         )
         assert q["nudge_text"] is None
@@ -141,7 +138,7 @@ class TestFullCoverageWithSC:
     def test_score_100(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -151,7 +148,7 @@ class TestFullCoverageWithSC:
     def test_nudge_is_none(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -174,14 +171,13 @@ class TestSCDoesNotAffectCoreScore:
         )
         assert q["score_pct"] == 80
 
-    def test_nudge_suggests_browser_cookies(self):
+    def test_nudge_suggests_bearer_token(self):
         q = _compute(
             config_overrides={"SCRAPECREATORS_API_KEY": "sc_key"},
             ytdlp_installed=True,
         )
         assert q["nudge_text"] is not None
-        assert "x.com" in q["nudge_text"].lower()
-        assert "XQUIK_API_KEY" in q["nudge_text"]
+        assert "X_BEARER_TOKEN" in q["nudge_text"]
 
 
 class TestYouTubeFallbackProvider:
@@ -190,7 +186,7 @@ class TestYouTubeFallbackProvider:
     def test_fallback_youtube_data_without_ytdlp_counts_active_not_missing(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=False,
@@ -216,7 +212,7 @@ class TestYouTubeFallbackProvider:
 
         with patch.object(youtube_yt, "is_ytdlp_installed", return_value=False) as ytdlp_check:
             compute_quality_score(
-                _base_config(AUTH_TOKEN="tok123"),
+                _base_config(X_BEARER_TOKEN="tok123"),
                 _base_results(
                     youtube_videos_count=5,
                     youtube_transcripts_count=4,
@@ -248,12 +244,12 @@ class TestDisclaimerAlwaysPresent:
         assert "no affiliation" in q["nudge_text"]
 
     def test_disclaimer_partial(self):
-        q = _compute(config_overrides={"AUTH_TOKEN": "tok123"})
+        q = _compute(config_overrides={"X_BEARER_TOKEN": "tok123"})
         assert "no affiliation" in q["nudge_text"]
 
     def test_disclaimer_not_present_at_100(self):
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             ytdlp_installed=True,
         )
         assert q["nudge_text"] is None
@@ -264,7 +260,7 @@ class TestRedditNeverInCoreErrored:
 
     def test_reddit_error_does_not_affect_score(self):
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             result_overrides={"reddit_error": "429 Too Many Requests"},
             ytdlp_installed=True,
         )
@@ -305,7 +301,7 @@ class TestYouTubeDegraded:
         # 83% transcript success - well above the 50% threshold
         # X is also enabled so all 5 cores are active and no nudge should fire
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             ytdlp_installed=True,
             result_overrides={
                 "youtube_videos_count": 6,
@@ -353,7 +349,7 @@ class TestYouTubeDegraded:
     def test_degraded_does_not_affect_score(self):
         # Degradation is informational, not score-affecting; YouTube still counts as active
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             ytdlp_installed=True,
             result_overrides={
                 "youtube_videos_count": 6,
@@ -528,7 +524,7 @@ class TestInstagramSilentFailure:
     def test_zero_items_with_sc_flags_bonus_errored(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -540,7 +536,7 @@ class TestInstagramSilentFailure:
 
     def test_zero_items_without_sc_does_not_flag(self):
         q = _compute(
-            config_overrides={"AUTH_TOKEN": "tok123"},
+            config_overrides={"X_BEARER_TOKEN": "tok123"},
             ytdlp_installed=True,
             result_overrides={"instagram_items_count": 0},
         )
@@ -549,7 +545,7 @@ class TestInstagramSilentFailure:
     def test_nonzero_items_does_not_flag(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -561,7 +557,7 @@ class TestInstagramSilentFailure:
     def test_missing_key_means_source_did_not_run(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -572,7 +568,7 @@ class TestInstagramSilentFailure:
     def test_nudge_text_explains_workaround(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -587,7 +583,7 @@ class TestInstagramSilentFailure:
     def test_bonus_errored_does_not_affect_core_score(self):
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
             },
             ytdlp_installed=True,
@@ -610,7 +606,7 @@ class TestInstagramSilentFailure:
         """
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "EXCLUDE_SOURCES": "instagram",
             },
@@ -624,7 +620,7 @@ class TestInstagramSilentFailure:
         """Canonical parsing pattern is comma-separated; case-insensitive."""
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "EXCLUDE_SOURCES": "threads, Instagram , pinterest",
             },
@@ -639,7 +635,7 @@ class TestInstagramSilentFailure:
         """
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "EXCLUDE_SOURCES": "threads",
             },
@@ -656,7 +652,7 @@ class TestInstagramSilentFailure:
         """
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "INCLUDE_SOURCES": "reddit,hn,x,youtube",
             },
@@ -670,7 +666,7 @@ class TestInstagramSilentFailure:
         """Canonical parsing pattern is comma-separated; case-insensitive."""
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "INCLUDE_SOURCES": " Reddit, HN , YouTube ",
             },
@@ -686,7 +682,7 @@ class TestInstagramSilentFailure:
         """
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "INCLUDE_SOURCES": "reddit,instagram",
             },
@@ -701,7 +697,7 @@ class TestInstagramSilentFailure:
         """
         q = _compute(
             config_overrides={
-                "AUTH_TOKEN": "tok123",
+                "X_BEARER_TOKEN": "tok123",
                 "SCRAPECREATORS_API_KEY": "sc_key",
                 "INCLUDE_SOURCES": "",
             },

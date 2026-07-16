@@ -27,7 +27,7 @@ htmlcov/
 .env.*
 !.env.example
 
-# Root vendor/ is accidental - real vendored client lives at scripts/lib/vendor/bird-search/
+# Root vendor/ is accidental; source-owned adapters live under scripts/lib/.
 /vendor/
 
 # build artifact from scripts/build-skill.sh

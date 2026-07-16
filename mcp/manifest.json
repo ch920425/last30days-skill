@@ -33,7 +33,7 @@
       "args": [],
       "env": {
         "OPENAI_API_KEY": "${user_config.openai_api_key}",
-        "XAI_API_KEY": "${user_config.xai_api_key}",
+        "X_BEARER_TOKEN": "${user_config.x_bearer_token}",
         "BRAVE_API_KEY": "${user_config.brave_api_key}",
         "EXA_API_KEY": "${user_config.exa_api_key}",
         "SERPER_API_KEY": "${user_config.serper_api_key}",
@@ -56,10 +56,10 @@
       "sensitive": true,
       "required": false
     },
-    "xai_api_key": {
+    "x_bearer_token": {
       "type": "string",
-      "title": "XAI_API_KEY",
-      "description": "xAI API key. Powers X / Twitter research via xAI's x_search tool. Get one at https://console.x.ai/.",
+      "title": "X_BEARER_TOKEN",
+      "description": "Bearer token for public X API v2 GET search through the local xurl wrapper.",
       "sensitive": true,
       "required": false
     },

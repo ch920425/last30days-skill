@@ -17,7 +17,6 @@ ENDPOINT_OVERRIDE_KEYS = {
 PROVIDER_CREDENTIALS = {
     "google": "Google/Gemini API key",
     "openai": "OpenAI API key",
-    "xai": "xAI API key",
     "openrouter": "OpenRouter API key",
     "perplexity": "Perplexity API key",
     "scrapecreators": "ScrapeCreators API key",
@@ -92,7 +91,6 @@ def build(
     credentials = {
         "google": {"present": bool(providers.get("google")), "label": PROVIDER_CREDENTIALS["google"]},
         "openai": {"present": bool(providers.get("openai")), "label": PROVIDER_CREDENTIALS["openai"]},
-        "xai": {"present": bool(providers.get("xai")), "label": PROVIDER_CREDENTIALS["xai"]},
         "openrouter": {"present": bool(providers.get("openrouter")), "label": PROVIDER_CREDENTIALS["openrouter"]},
         "perplexity": {"present": bool(providers.get("perplexity")), "label": PROVIDER_CREDENTIALS["perplexity"]},
         "scrapecreators": {

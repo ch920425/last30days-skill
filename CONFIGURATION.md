@@ -82,7 +82,6 @@ On the very first `/last30days` run (no `~/.config/last30days/.env`, or `SETUP_C
 
 Both share the same consent points:
 
-1. **Browser cookies** - the model asks before reading anything. On yes it runs `setup --allow-browser-cookies`, which extracts Firefox/Safari cookies (never Chrome unless `FROM_BROWSER=auto` or a named Chromium browser is explicitly configured) to unlock X/Twitter and other logged-in sources, and installs yt-dlp + the keyless Digg CLI. On no it runs setup without `--allow-browser-cookies` (or with `FROM_BROWSER=off`), which skips all cookie reads and still installs the tools.
 2. **Full Disk Access (macOS)** - if a cookie read is permission-denied, the model surfaces the System Settings > Privacy & Security > Full Disk Access fix and offers one retry.
 3. **ScrapeCreators GitHub signup** - offered on every first run (10,000 free calls). On consent it runs `setup --github`, which opens a browser for GitHub device-auth (or registers instantly via the `gh` CLI when installed) and, on success, **persists `SCRAPECREATORS_API_KEY` automatically** (0o600, masked in output) so TikTok, Instagram, and the SC Reddit/YouTube backups activate on the next run. Decline anytime; you can run it later by asking to set up ScrapeCreators. The Step 5 opt-in has two tiers, both comment-enabled: **Recommended** (TikTok + Instagram posts AND top comments, plus YouTube comments — `INCLUDE_SOURCES=tiktok,instagram,youtube_comments,tiktok_comments,instagram_comments`) and **Everything**, which also adds Threads + Pinterest. Comments are on by default; Threads and Pinterest are the only opt-in extras.
 
@@ -134,6 +133,7 @@ python3 skills/last30days/scripts/last30days.py "MCP servers" \
 | DripStack | none | opt-in only: per run with `--search dripstack`, or persistently with `INCLUDE_SOURCES=dripstack` in `.env`. Searches premium financial newsletters and analyst writeups via a free, public search API — no key needed. Never active without the opt-in. | yes when opted in (public API, no auth) |
 | GitHub | `gh` CLI installed (uses your GitHub auth) | always on if `gh` present | yes |
 | YouTube | `yt-dlp` CLI installed; `SCRAPECREATORS_API_KEY` adds a server-side transcript fallback used only when yt-dlp fails (429 / bot-gate) | always on if `yt-dlp` present; SC transcript fallback default-on when key set (no credit spent unless yt-dlp fails) | yes |
+| X / Twitter | `X_BEARER_TOKEN` + local GET-only `xurl` wrapper | public API v2 recent search | subject to the X API plan |
 | YouTube comments | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `youtube_comments` (**on by default** — written by the Step 5 Recommended tier) | top comments (by likes) on the top ~3 videos by engagement | ~3 calls/run; 10K free calls |
 | TikTok comments | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `tiktok_comments` (**on by default** — Step 5 Recommended tier) | top comments (by `digg_count`) on the top ~3 TikTok posts | ~3 calls/run; 10K free calls |
 | Instagram comments | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `instagram_comments` (**on by default** — Step 5 Recommended tier) | top comments (by `comment_like_count`) on the top ~3 Instagram posts, via `/v2/instagram/post/comments` | ~3 calls/run; 10K free calls |
@@ -141,7 +141,6 @@ python3 skills/last30days/scripts/last30days.py "MCP servers" \
 | arXiv | `arxiv-pp-cli` on PATH (auto-installed during first-run setup via `npx -y @mvanhorn/printing-press-library@0.1.16 install arxiv --cli-only`) | always on if `arxiv-pp-cli` on PATH; fires on research/technical topics and stays quiet otherwise (relevance + 365-day recency gating) | yes (free, keyless) |
 | Techmeme | `techmeme-pp-cli` on PATH (auto-installed via `... install techmeme --cli-only`) | always on if `techmeme-pp-cli` on PATH; searches Techmeme's live archive and keeps only headlines dated within the research window (undated headlines flow through as low-confidence) | yes (free, keyless) |
 | Trustpilot | `trustpilot-pp-cli` on PATH (NOT auto-installed; install on demand via `npx -y @mvanhorn/printing-press-library@0.1.16 install trustpilot --cli-only`) + `INCLUDE_SOURCES` contains `trustpilot` | **opt-in, off by default**; when enabled, activates only on company/brand topics — or on any topic when `--trustpilot-domain=<domain>` pins the review page explicitly (bypasses the brand-shape gate; also the per-entity `trustpilot_domain` key in `--competitors-plan`). Bare company names auto-resolve to the review-page domain via the CLI's search. The session warms once before the search fan-out; a stale session does a ~10s headless-Chrome WAF-cookie harvest (set `LAST30DAYS_TRUSTPILOT_NO_BROWSER=1` to disable in cron/CI) | yes (no API key; cookie-replay after the one-time harvest) |
-| X / Twitter | one of: `AUTH_TOKEN` + `CT0` (browser cookies, Bird CLI), `XAI_API_KEY`, `XQUIK_API_KEY`, `SCRAPECREATORS_API_KEY`, or `FROM_BROWSER` (cookie-jar auth) | X items in results | cookie-jar / Bird = free; Xquik / xAI / ScrapeCreators = key-based |
 | TikTok | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `tiktok` | TikTok items | 10K free calls |
 | Instagram | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `instagram` | Instagram Reels | 10K free calls; raise `LAST30DAYS_TRANSCRIPT_TIMEOUT` (default 30s) if SC is slow on your network |
 | Threads | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `threads` | Threads items | 10K free calls |
@@ -156,7 +155,6 @@ python3 skills/last30days/scripts/last30days.py "MCP servers" \
 | Jobs / careers pages | none for public ATS pages; web backend improves fallback discovery | `--hiring-signals` and strong Hiring Signals in standard company reports | yes |
 | Apify (alternate scraper) | `APIFY_API_TOKEN` | fallback for Reddit/TikTok/Instagram when ScrapeCreators is exhausted | yes (limited) |
 
-**X on cookie-less hosts.** Bird (the free X source) scrapes X using your logged-in browser cookies (`AUTH_TOKEN`/`CT0`), which agent hosts like OpenClaw, CI, or headless runs often can't supply — and scraping carries some account risk. On those, set `XQUIK_API_KEY` (or `XAI_API_KEY`) for full, ranked X coverage from a single API key: the same engagement-based ranking, first-party authorship, and handle (from/mentions) lanes the native X source gets. `--diagnose` reports whether the key is working (and flags an unpaid key).
 
 **Example `.env` skeleton** (placeholders only - replace with your own values):
 
@@ -179,20 +177,8 @@ INCLUDE_SOURCES=tiktok,instagram
 # LAST30DAYS_PERPLEXITY_MODE=sonar  # sonar | search | both
 # LAST30DAYS_PERPLEXITY_MODEL=sonar-pro  # sonar | sonar-pro | sonar-reasoning-pro
 
-# X authentication (one option only)
-AUTH_TOKEN=<your-auth-token>
-CT0=<your-ct0-token>
-# OR xAI API key (paid)
-# XAI_API_KEY=<your-xai-key>
-# OR Xquik key-based X search
-# XQUIK_API_KEY=<your-xquik-key>
-# OR cookie-jar (free; logs in via your browser session).
-# Unset = no browser-cookie reads. FROM_BROWSER=auto tries Firefox/Safari and
-# the Chromium family (Chrome, Brave, Edge, Vivaldi, Opera, Arc, Chromium); it
-# only prompts for macOS Keychain access on the browser that actually holds your
-# X cookies. Or name a single browser, e.g. brave/edge. On Windows only Firefox
-# is supported.
-# FROM_BROWSER=firefox
+# Public X API v2 GET search
+X_BEARER_TOKEN=<your-x-bearer-token>
 
 # Bluesky
 BSKY_HANDLE=<your-handle>.bsky.social
@@ -284,16 +270,13 @@ metadata in `LAST30DAYS_KEYCHAIN_ALIASES`. The loader still checks
 
 ```bash
 # ~/.config/last30days/.env
-LAST30DAYS_KEYCHAIN_ALIASES={"XAI_API_KEY":{"account":"keychain-user","service":"existing-xai-api-key"},"BRAVE_API_KEY":"existing-brave-api-key"}
 ```
 
-Each JSON key must be one of the supported env-var names (`XAI_API_KEY`,
 `SCRAPECREATORS_API_KEY`, `BRAVE_API_KEY`, etc). A string value means "use this
 service name with the current user account"; an object can specify both
 `account` and `service`. Lists are allowed for fallback order:
 
 ```bash
-LAST30DAYS_KEYCHAIN_ALIASES={"XAI_API_KEY":[{"account":"keychain-user","service":"existing-xai-api-key"},{"service":"last-resort-xai"}]}
 ```
 
 The alias value contains no secret material; it is safe to keep in `.env` as
@@ -342,7 +325,6 @@ An explicit `--register` wins over `LAST30DAYS_REGISTER`; the environment/config
 
 1. **Gemini** - `GOOGLE_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_GENAI_API_KEY`
 2. **OpenAI** - `OPENAI_API_KEY` only. Codex ChatGPT auth at `~/.codex/auth.json` is intentionally not used as an OpenAI provider credential.
-3. **xAI** - `XAI_API_KEY`
 4. **OpenRouter** - `OPENROUTER_API_KEY` (Sonar fallback for the Perplexity source / `--deep-research`; also usable as a reasoning provider)
 5. **Local / deterministic** - always available, lowest quality
 
@@ -408,7 +390,6 @@ Every live run writes its JSON result to `~/.config/last30days/doctor-cache.json
 | --- | --- |
 | `LAST30DAYS_DOCTOR_TTL` | Freshness window for `doctor --cached`, in **seconds**. Defaults to `900` (15 minutes). `0` makes every `--cached` call run live. |
 | `LAST30DAYS_DOCTOR_PROBE_TIMEOUT` | Per-source deadline (**seconds**) for `doctor --probe` live checks. Defaults to `10`. Caps each concurrent probe so a slow source cannot hang the command. |
-| `LAST30DAYS_X_BACKEND` | Pins the X backend (`xai` / `bird` / `xurl` / `xquik`); doctor renders the pin and predicts "will use" accordingly. |
 | `LAST30DAYS_REDDIT_BACKEND` | `scrapecreators` makes ScrapeCreators the primary Reddit backend; doctor renders Reddit's conditional routing with the pin applied. |
 
 Web search has **no** env pin — pin it per-run with `--web-backend=<name>` only (see [Web search backend priority](#web-search-backend-priority)).

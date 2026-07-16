@@ -27,12 +27,6 @@ class ProvidersV3Tests(unittest.TestCase):
         )
         self.assertEqual("openai", runtime.reasoning_provider)
 
-    def test_auto_falls_back_to_xai(self):
-        runtime, client = providers.resolve_runtime(
-            {"XAI_API_KEY": "test-key", "LAST30DAYS_REASONING_PROVIDER": "auto"},
-            depth="default",
-        )
-        self.assertEqual("xai", runtime.reasoning_provider)
 
     def test_auto_returns_local_runtime_when_no_keys(self):
         runtime, client = providers.resolve_runtime(

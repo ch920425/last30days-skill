@@ -13,11 +13,9 @@ from . import env, http, schema
 GEMINI_FLASH_LITE = "gemini-3.1-flash-lite"
 GEMINI_PRO = "gemini-3.1-pro-preview"
 OPENAI_DEFAULT = "gpt-5.4-nano"
-XAI_DEFAULT = "grok-4-1-fast"
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-XAI_RESPONSES_URL = "https://api.x.ai/v1/responses"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 # OpenRouter routes the Gemini Flash Lite tier as the -preview slug; that is the
 # stable form on that routing layer even though native Gemini's GEMINI_FLASH_LITE
@@ -130,37 +128,6 @@ class OpenAIClient(ReasoningClient):
         return extract_openai_text(response)
 
 
-class XAIClient(ReasoningClient):
-    name = "xai"
-
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-
-    def generate_text(
-        self,
-        model: str,
-        prompt: str,
-        *,
-        tools: list[dict[str, Any]] | None = None,
-        response_mime_type: str | None = None,
-    ) -> str:
-        del tools, response_mime_type
-        payload = {
-            "model": model,
-            "input": [{"role": "user", "content": prompt}],
-        }
-        response = http.post(
-            os.environ.get("XAI_BASE_URL", XAI_RESPONSES_URL),
-            payload,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            timeout=90,
-        )
-        return extract_openai_text(response)
-
-
 class OpenRouterClient(ReasoningClient):
     name = "openrouter"
 
@@ -196,7 +163,6 @@ class OpenRouterClient(ReasoningClient):
 _MODEL_DEFAULTS: dict[str, tuple[str, str]] = {
     "gemini": (GEMINI_FLASH_LITE, GEMINI_FLASH_LITE),
     "openai": (OPENAI_DEFAULT, OPENAI_DEFAULT),
-    "xai": (XAI_DEFAULT, XAI_DEFAULT),
     "openrouter": (OPENROUTER_DEFAULT, OPENROUTER_DEFAULT),
 }
 
@@ -240,15 +206,12 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
     provider_name = (config.get("LAST30DAYS_REASONING_PROVIDER") or "auto").lower()
     google_key = config.get("GOOGLE_API_KEY") or config.get("GEMINI_API_KEY") or config.get("GOOGLE_GENAI_API_KEY")
     openai_token = config.get("OPENAI_API_KEY")
-    xai_key = config.get("XAI_API_KEY")
 
     if provider_name == "auto":
         if google_key:
             provider_name = "gemini"
         elif openai_token and config.get("OPENAI_AUTH_STATUS") == env.AUTH_STATUS_OK:
             provider_name = "openai"
-        elif xai_key:
-            provider_name = "xai"
         elif config.get("OPENROUTER_API_KEY"):
             provider_name = "openrouter"
         else:
@@ -287,18 +250,6 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
             openai_token
         )
 
-    if provider_name == "xai":
-        if not xai_key:
-            raise RuntimeError("xAI selected but XAI_API_KEY is not configured.")
-        runtime = schema.ProviderRuntime(
-            reasoning_provider="xai",
-            planner_model=planner_model,
-            rerank_model=rerank_model,
-    
-            x_search_backend=_resolve_x_backend(config),
-        )
-        return runtime, XAIClient(xai_key)
-
     if provider_name == "openrouter":
         openrouter_key = config.get("OPENROUTER_API_KEY")
         if not openrouter_key:
@@ -315,9 +266,6 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
 
 
 def _resolve_x_backend(config: dict[str, Any]) -> str | None:
-    preferred = (config.get(env.X_BACKEND_PIN_VAR) or "").lower()
-    if preferred in {"xai", "bird"}:
-        return preferred
     return env.get_x_source(config)
 
 

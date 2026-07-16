@@ -15,7 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `doctor --postmortem`: reads the last run's `last-report.json` (any age, labeled) and reports, per source, what actually happened - Failed / Partial / Succeeded / Skipped with details and fix hints - so "what broke on that run?" is answerable after the fact.
 - `doctor --probe`: a bounded live test that verifies WORKING instead of guessing. It also auto-fires when there is no fresh run. Each source is probed concurrently under a per-source deadline (`LAST30DAYS_DOCTOR_PROBE_TIMEOUT`, default 10s) so a slow source can never hang the command. Scope is free HTTP endpoints + keyless CLIs only; credit-gated sources (X, TikTok, Instagram, Threads, …) are never live-probed and stay UNVERIFIED.
 - `doctor` now surfaces **CLI health**: sources needing a downloaded binary (`yt-dlp`, `digg-pp-cli`, `techmeme-pp-cli`, `arxiv-pp-cli`, `trustpilot-pp-cli`, optional `gh`) carry an inline `[CLI: name ✓]` marker and a dedicated CLI-health block, visibly distinct from keyless sources.
-- `doctor` now audits **techmeme, arXiv, and trustpilot** (they run in research but were previously absent from the health surface), and surfaces **backup lanes** (Reddit ScrapeCreators backfill, YouTube SC transcript/search backstop used when yt-dlp is rate-limited, X cookie-vs-`XAI_API_KEY` dual path) and **comment lanes** (youtube/tiktok/instagram) as indented sub-lines.
 - `doctor --json` gains `audit_state`, `cli`, `backups`, `comments`, and `run_outcome` per source plus a top-level `mode`, all additive - every existing key is preserved.
 
 ### Fixed
@@ -43,7 +42,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Doctor no longer reports X as `Off` when the bird CLI plus browser-cookie consent serve X fine at runtime: the cookie-backed path now reads **Ready**, with an honest note that the session is verified only at run time and `XAI_API_KEY` is the key-backed alternative. ([#815](https://github.com/mvanhorn/last30days-skill/pull/815))
 - Doctor's YouTube note no longer reads as broken when yt-dlp is healthy: it affirms search + transcripts work, scopes the transcription key to caption-free videos, and correctly attributes comment text to ScrapeCreators (key + `youtube_comments` opt-in) with an actionable fix line - never to yt-dlp. ([#815](https://github.com/mvanhorn/last30days-skill/pull/815))
 - Doctor's Web line on Claude Code now says host-native web search is active instead of `degraded ... keyless`, and names the host rather than an env var the user never set. Messaging only; engine web behavior unchanged. ([#815](https://github.com/mvanhorn/last30days-skill/pull/815))
 - The report footer no longer prints `no results` lines for zero-item sources; failure signal stays in the Source Coverage / Partial Coverage evidence blocks, and the `Raw results saved to` line still renders when every source is empty. ([#815](https://github.com/mvanhorn/last30days-skill/pull/815))
@@ -156,7 +154,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Runtime preflight now auto-provisions a uv-managed CPython 3.12 on hosts that have `uv` but no system Python 3.12+ (most agent sandboxes), instead of hard-failing the version gate. The install is bounded by a 30s HTTP timeout, matches an existing managed `>=3.12` interpreter before downloading, and announces the one-time ~28MB download on stderr rather than installing silently; hosts without `uv` still get the original clear error. Setup invocations now honor `LAST30DAYS_PYTHON` so first-run setup works on the same hosts. ([#738](https://github.com/mvanhorn/last30days-skill/pull/738), thanks @buntysomroy; setup-interpreter fix adapted from #699 by @SeanGearin)
 - Setup wizard summary now displays the install status of the arXiv/Techmeme pp_sources CLIs, so users can see whether they landed on PATH. ([#741](https://github.com/mvanhorn/last30days-skill/pull/741), thanks @23241a6749)
-- `--diagnose` / `--preflight` no longer falsely reports X as unreachable when X auth comes from `FROM_BROWSER` browser cookies. These modes run in `plan_only` and skip cookie extraction for privacy (no Keychain access), so X was dropped from `available_sources` even though a real run authenticates fine. A new side-effect-free `env.x_pending_browser_auth` predicate now reports X as available-pending-browser-auth (and surfaces an `x_pending_browser_auth` flag in `--diagnose`) by keying only on the already-resolved browser list — no cookie is read. Covers every configured browser, including Chrome. ([#692](https://github.com/mvanhorn/last30days-skill/issues/692); first reported and fixed by @23241a6749 in #700)
 
 ### Internal
 
@@ -206,7 +203,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Single X source with backend failover.** X is now one source backed by an ordered chain of interchangeable backends (xai, bird, xurl, xquik) with runtime failover, rather than separate sources. The key-based xquik backend reaches parity with bird, gaining the X-quality ranking and FROM/ABOUT handle lanes, so hosts that cannot supply browser cookies (OpenClaw, CI/cron, headless harnesses) get real X coverage from an xquik key alone. Handle lanes run via the first handle-capable backend in the chain even when a non-capable backend (xai/xurl) is primary. (#622)
 
 ## [3.7.1] - 2026-06-21
 
@@ -263,7 +259,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`--diagnose` honesty.** X status now reflects a real 1-tweet probe (downgrades from green when X is effectively dead; fail-open on a transient timeout) and reports the true auth lane (browser / env / keychain) instead of a hardcoded `env AUTH_TOKEN`. Handle/mention searches log query + result count on success, not only on failure ([#609](https://github.com/mvanhorn/last30days-skill/pull/609)).
 - **X column de-pollution.** The last-chance keyword retry no longer collapses a multi-word subquery to a bare generic token (e.g. `compound`); it keeps an entity anchor ([#607](https://github.com/mvanhorn/last30days-skill/pull/607)).
 - **Mandatory person-aware subquery disambiguation.** Collision-prone person names (Kevin Rose vs Kevin Warsh, Lan Xuezhao vs Lanzhou) must anchor every subquery with the resolved company/role/domain context ([#611](https://github.com/mvanhorn/last30days-skill/pull/611)).
 
@@ -275,7 +270,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Digg added to first-run setup.** The free, keyless `digg-pp-cli` is now auto-installed during the first-run wizard (best-effort via the Printing Press installer, with a recommend-only fallback), so the already-built Digg AI-news source activates automatically for new users instead of silently never appearing ([#590](https://github.com/mvanhorn/last30days-skill/pull/590)).
 
 - **`LAST30DAYS_YOUTUBE_SSH_HOST` transcript routing** — yt-dlp transcript fetch runs on the remote SSH host via a mktemp + cat pipeline ([#422](https://github.com/mvanhorn/last30days-skill/pull/422)).
-- Browser-cookie auth for X/Twitter now covers the full Chromium family on macOS - Brave, Microsoft Edge, Vivaldi, Opera, Arc, and Chromium - alongside the existing Chrome, Firefox, and Safari. They all share Chrome's v10 AES-128-CBC decryption, differing only in profile path and Keychain service name, so they run through one shared decryption core. The profile finder probes both the modern `Default/Network/Cookies` layout (Chromium >= 96) and the legacy flat `Default/Cookies`, and Chrome now resolves through that same finder so it picks up the modern layout too. Set `FROM_BROWSER=auto` to try every browser, or `FROM_BROWSER=<name>` (e.g. `brave`, `edge`, `arc`) to target one. Verified end-to-end on real Brave and Edge installs ([#572](https://github.com/mvanhorn/last30days-skill/pull/572)).
 - **First-party positioning research + pitch-vs-pulse synthesis (company / product / service topics).** A new mandatory research step captures each entity's current stated positioning from first-party sources (homepage, docs, pricing) rather than from memory. The fetched pitch grounds `What it is` descriptions (entities described as they pitch themselves today), helps reject unrelated brand-name noise, and feeds an evidence-triggered prose beat: when the month's conversation directly supports a specific claim, cuts against one, or is squarely about the pitched ground, the synthesis says so anchored to the top thread — and stays silent when the pulse is orthogonal to the pitch, because a manufactured connection is worse than omission. Claims are tested at matched altitude (specific claims against specific threads; broad taglines are never graded against individual items), and statements stay windowed to the 30 days — no trend verdicts. Scoped to entities with an identifiable first party: people are always excluded (even founders whose companies qualify), as are events, abstract concepts, and ownerless topics like Bitcoin; the beat requires positioning fetched during the run, never from memory.
 
 ### Changed
@@ -292,8 +286,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First-run setup wizard in SKILL.md now references the existing Python setup wizard (`last30days.py setup`) instead of the missing `nux-wizard.md` file, so first-run setup actually runs on new installs. ([#574](https://github.com/mvanhorn/last30days-skill/issues/574))
 - `check-config.sh` no longer exits 1 on the ScrapeCreators-configured path when no prior run exists (empty `LAST_RUN_LINE`) — swapped `&&` guard for an `if` block that always exits cleanly ([#463](https://github.com/mvanhorn/last30days-skill/issues/463))
 - `check-config.sh` no longer exits 1 when a `.env` value contains an unbalanced quote — replaced `xargs` (which interprets quotes) with `sed` for whitespace trimming in `load_env_vars` ([#506](https://github.com/mvanhorn/last30days-skill/issues/506))
-- X/Twitter `.env` template now includes `CT0` alongside `AUTH_TOKEN` in the example skeleton ([CONFIGURATION.md](CONFIGURATION.md)), and the just-in-time unlock wizard offers AUTH_TOKEN/CT0 cookie entry ([#396](https://github.com/mvanhorn/last30days-skill/issues/396))
-- `check-config.sh` no longer counts X as an active source when only `AUTH_TOKEN` is set without `CT0` — both cookies are now required to credit X in the source count ([#396](https://github.com/mvanhorn/last30days-skill/issues/396))
 - Firefox cookie extraction now falls back to scanning non-default profiles when the default profile has no matching X cookies, fixing multi-profile setups where login lives on a non-default profile ([#498](https://github.com/mvanhorn/last30days-skill/issues/498))
 - `subproc.py` `run_with_timeout()` now guards `os.killpg` / `os.getpgid` with `hasattr`, preventing an uncaught `AttributeError` crash when a subprocess times out on Windows where these functions don't exist ([#527](https://github.com/mvanhorn/last30days-skill/issues/527))
 - Entity-grounding rerank demotion now keys on the head token of the primary entity instead of requiring the full multi-word phrase as a contiguous substring. A high-engagement on-entity item (e.g. a 323-pt HN thread titled "Stripe is friendly to 'friendly fraud'") is no longer demoted to score 0 on a `Stripe payments` query just because it lacks the trailing search-hint word. The intended demotion still fires for items that never name the brand at all. The keyless Reddit comment-enrichment slot selection (`_slot_priority`), which mirrors this signal, was updated to the same head-token grounding so the two paths stay consistent.
@@ -336,7 +328,6 @@ A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged throu
 
 - Reddit URL auto-enrichment from web search via the public JSON API ([#366](https://github.com/mvanhorn/last30days-skill/pull/366)).
 - Per-run finding sightings recorded in the SQLite store ([#373](https://github.com/mvanhorn/last30days-skill/pull/373)).
-- Brave browser support for X/Twitter cookie extraction ([#320](https://github.com/mvanhorn/last30days-skill/pull/320)).
 
 **Tests and CI**
 
@@ -409,7 +400,6 @@ A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged throu
 - SC YouTube + multi-token HN searches unblocked ([#388](https://github.com/mvanhorn/last30days-skill/pull/388)).
 - Transcript-fetch ratio surfaced + degraded-run nudge for stale `yt-dlp` ([#340](https://github.com/mvanhorn/last30days-skill/pull/340)).
 
-**bird_x / HTTP**
 
 - Subprocess retry on non-JSON stdout to handle X anti-bot HTML interstitials ([#383](https://github.com/mvanhorn/last30days-skill/pull/383)).
 - HTTP retry budget expanded + exponential backoff on DNS resolution failure ([#382](https://github.com/mvanhorn/last30days-skill/pull/382)).
@@ -418,7 +408,6 @@ A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged throu
 
 **Planner and sources**
 
-- `xquik` registered in `SOURCE_CAPABILITIES` ([#336](https://github.com/mvanhorn/last30days-skill/pull/336), fixes [#319](https://github.com/mvanhorn/last30days-skill/issues/319)).
 - Honor explicit optional source requests ([#356](https://github.com/mvanhorn/last30days-skill/pull/356)).
 - ScrapeCreators source-gating aligned between code and docs ([#415](https://github.com/mvanhorn/last30days-skill/pull/415)).
 - OpenClaw works without ScrapeCreators key ([#392](https://github.com/mvanhorn/last30days-skill/pull/392), by @thinkun).
@@ -585,13 +574,11 @@ v3.0.9 adds the engine-side Class 1 keyword-trap refuse-gate ("birthday gift for
 - **Peter Steinberger trailing Sources leak.** 2026-04-18 validation failure where the model appended a TechCrunch / TED / Fortune / Wikipedia Sources list after the invitation. Now structurally prevented at three layers: engine emits the canonical body, LAW 1 quotes the exact WebSearch reminder, closing boundary names the anti-pattern.
 - **Wrong-file SKILL.md capture.** Deleted `.agents/skills/last30days/SKILL.md` (1382 lines, April 13 snapshot) and `.hermes-plugin/SKILL.md` (269 lines). One SKILL.md per plugin now, at the plugin root.
 - **GitHub date parsing garbage** - thanks @iliaal ([#208](https://github.com/mvanhorn/last30days-skill/pull/208)). `_parse_date` now rejects invalid input cleanly.
-- **Windows Bird X stability** - thanks @Chelebii ([#227](https://github.com/mvanhorn/last30days-skill/pull/227)).
 - **Linux `check_perms` false-warn** - thanks @george231224 ([#216](https://github.com/mvanhorn/last30days-skill/pull/216)). Uses GNU stat first.
 - **UTF-8 saved output** - thanks @Gujiassh ([#225](https://github.com/mvanhorn/last30days-skill/pull/225)).
 - **Version metadata alignment** - thanks @Gujiassh ([#217](https://github.com/mvanhorn/last30days-skill/pull/217)) and @shalomma ([#229](https://github.com/mvanhorn/last30days-skill/pull/229)).
 - **`--days` alias backcompat** - thanks @BryanTegomoh ([#230](https://github.com/mvanhorn/last30days-skill/pull/230)).
 - **`INCLUDE_SOURCES` env default** - thanks @hnshah ([#223](https://github.com/mvanhorn/last30days-skill/pull/223)).
-- **Bird X all-None engagement** - thanks @j-sperling ([#234](https://github.com/mvanhorn/last30days-skill/pull/234)).
 
 ### Contributors
 
@@ -673,7 +660,6 @@ If `/last30days` stopped working for you, run `/plugin update last30days` then `
 
 ### Removed
 
-- Unused root `vendor/` directory (215 files from an accidental commit in PR #48 - the real vendored X client lives at `scripts/lib/vendor/bird-search/`).
 - Legacy top-level `plans/` directory (superseded by `docs/plans/`; both plans described work that was already shipped in v3).
 
 ### Added
@@ -831,7 +817,6 @@ Three headline features: watchlists for always-on bots, YouTube transcripts as a
 - Open-class skill with watchlists, briefings, and history modes (SQLite-backed, FTS5 full-text search, WAL mode) (`feat(open)`)
 - YouTube as a 4th research source via yt-dlp -- search, view counts, and auto-generated transcript extraction (`feat: Add YouTube`)
 - OpenAI Codex CLI compatibility -- install to `~/.agents/skills/last30days`, invoke with `$last30days` (`feat: Add Codex CLI`)
-- Bundled X search -- vendored subset of Bird's Twitter GraphQL client (MIT, originally by @steipete), no external CLI needed (`v2.1: Bundle Bird X search`)
 - Native web search backends: Parallel AI, Brave Search, OpenRouter/Perplexity Sonar Pro (`feat(engine)`)
 - `--diagnose` flag for checking available sources and authentication status
 - `--store` flag for SQLite accumulation (open variant)

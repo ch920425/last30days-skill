@@ -46,9 +46,6 @@ Then for each missing item, offer setup in priority order:
    - Option B: "I have a key" -- accept paste, write to .env
    - Option C: "Skip for now"
 
-2. **X/Twitter** (if not configured): "X search finds tweets and conversations. To unlock X: add FROM_BROWSER=auto (reads browser cookies, free), XAI_API_KEY (no browser access, api.x.ai), or AUTH_TOKEN+CT0 (manual cookies)."
-   - Option A: "I have an xAI API key" (recommended for servers -- persistent, no expiry). Write XAI_API_KEY to .env.
-   - Option B: "I have AUTH_TOKEN + CT0 from my browser" -- accept both, write to .env
    - Option C: "Skip for now"
 
 3. **YouTube** (if yt-dlp not found): "YouTube search needs yt-dlp. Run: `pip install yt-dlp`"
@@ -72,7 +69,6 @@ Welcome to /last30days!
 I research any topic across Reddit, X, YouTube, and other sources - synthesizing what people are actually saying right now.
 
 Auto setup gives you 5 core sources for free in 30 seconds:
-- X/Twitter - reads your x.com browser cookies to authenticate (not saved to disk). Chrome on macOS will prompt for Keychain access.
 - Reddit with comments - public JSON, no API key needed
 - YouTube search + transcripts - installs yt-dlp (open source, 190K+ GitHub stars)
 - Hacker News + Polymarket + GitHub (if `gh` CLI installed) - always on, zero config
@@ -94,11 +90,9 @@ Options:
 Check if `BROWSER_CONSENT=true` already exists in `~/.config/last30days/.env`. If it does, skip the consent prompt and run setup directly.
 
 If `BROWSER_CONSENT=true` is NOT present, **call AskUserQuestion:**
-Question: "Auto setup will scan your browser for x.com cookies to authenticate X search. Cookies are read live, not saved to disk. Chrome on macOS will prompt for Keychain access. OK to proceed?"
 Options:
 - "Yes, scan my cookies for X" - Run setup as normal. Append `BROWSER_CONSENT=true` to .env after setup completes.
 - "Skip X, just set up YouTube" - Run setup with YouTube only (install yt-dlp). Do not scan cookies.
-- "I have an xAI API key instead" - Ask them to paste it, write XAI_API_KEY to .env. Then install yt-dlp.
 
 Run the setup subcommand:
 ```bash
@@ -154,9 +148,6 @@ The magic of /last30days is Reddit comments + X posts together - and both are fr
 Add these to `~/.config/last30days/.env`:
 
 X/Twitter (pick one - this is the most important):
-- `FROM_BROWSER=auto` - free. Reads your x.com login cookies at search time to authenticate. Cookies are read live each run, not saved to disk. Chrome on macOS will prompt for Keychain access the first time. Firefox and Safari don't.
-- `XAI_API_KEY=xxx` - no browser access needed. Get a key at api.x.ai. Best for servers or if you don't want cookie scanning.
-- `AUTH_TOKEN=xxx` + `CT0=xxx` - paste your X cookies manually (x.com -> F12 -> Application -> Cookies)
 
 Reddit (free, works out of the box):
 - Public JSON gives you threads + top comments with upvote counts. No setup required.

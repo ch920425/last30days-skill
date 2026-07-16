@@ -109,7 +109,7 @@ def probe_command(
 # Dependency probes (doctor command, issue #692).
 #
 # ``probe_dependency`` generalizes ``probe_command`` for the skill's external
-# binaries (yt-dlp, Printing Press CLIs, node for the vendored bird client,
+# binaries (yt-dlp, Printing Press CLIs,
 # ffmpeg). It answers three questions the bare shutil.which gate cannot:
 #   - Is the binary genuinely runnable (a stale shim that resolves on PATH but
 #     cannot exec is BROKEN, not available)?

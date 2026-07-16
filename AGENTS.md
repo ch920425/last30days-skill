@@ -6,7 +6,6 @@ Agent Skills package for researching any topic across Reddit, X, YouTube, and we
 - `skills/last30days/SKILL.md` — canonical skill definition / runtime spec the model reads when the slash command fires
 - `skills/last30days/scripts/last30days.py` — main research engine
 - `skills/last30days/scripts/lib/` — search, enrichment, rendering modules
-- `skills/last30days/scripts/lib/vendor/bird-search/` — vendored X search client
 - `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`)
 - `CONCEPTS.md` — shared domain vocabulary (Skill, Engine, Harness, Beta channel) — relevant when orienting to the codebase or discussing project terminology
 - `CONFIGURATION.md` — user-facing knobs (env vars, flags, per-host install patterns); keep in sync per the rules below

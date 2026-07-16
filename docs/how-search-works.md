@@ -9,7 +9,6 @@ User: /last30days "kanye west"
     ↓           ↓           (concurrent via ThreadPoolExecutor)
  [REDDIT]    [X/TWITTER]
     ↓           ↓
- OpenAI     Bundled Bird or
  API        xAI API
     ↓           ↓
  Parse       Parse
@@ -95,58 +94,18 @@ No API key needed. This returns the actual thread data:
 
 X search has **two backends** — the skill auto-detects which to use.
 
-### Priority: Bundled Bird (env auth) → xAI API (paid)
 
 ```python
-if node_available and AUTH_TOKEN and CT0:
-    use bundled Bird    # Free, popup-free, env-authenticated
-elif XAI_API_KEY:
     use xAI API         # Paid, uses grok-4-1-fast
 else:
     skip X entirely     # No X results
 ```
 
-### Backend 1: xAI API
-
-**API Call:**
-```
-POST https://api.x.ai/v1/responses
-Authorization: Bearer {XAI_API_KEY}
-```
-
-**Payload:**
-```json
-{
-  "model": "grok-4-1-fast",
-  "tools": [{ "type": "x_search" }],
-  "input": "Search X for posts about {topic} from {from_date} to {to_date}..."
-}
-```
-
-The prompt asks grok to return JSON with:
-- `text`, `url`, `author_handle`, `date`
-- `engagement`: `{ likes, reposts, replies, quotes }`
-- `why_relevant`, `relevance` score
-
-**Engagement data comes from grok's x_search tool** - it has direct access to X's data.
-
-### Backend 2: Bundled Bird client (free alternative)
-
-The repo vendors a search-only subset of Bird's Twitter GraphQL client and shells out to it with Node.js. No global `bird` install is required. The Python wrapper passes `AUTH_TOKEN` and `CT0` via env, which keeps normal local runs headless and avoids browser-cookie prompts.
-
-**Bundled Bird returns raw X API data** - likes, reposts, replies are real engagement metrics from X's API, not estimates.
-
-| Metric | Bundled Bird | xAI API |
-|---|---|---|
-| Post text | Real | Real |
-| Likes/reposts | Real (X API) | Real (x_search tool) |
-| Replies/quotes | Real | Real |
-| Author handle | Real | Real |
-| Relevance score | Default 0.7 (re-ranked by relevance.py) | AI-assessed 0.0-1.0 |
+X results come exclusively from the local `xurl` wrapper, which performs
+read-only X API v2 requests with `X_BEARER_TOKEN`.
 
 ### Depth settings
 
-| Depth | xAI posts | Bundled Bird results | xAI timeout | Bird timeout |
 |---|---|---|---|---|
 | `--quick` | 8-12 | 12 | 90s | 30s |
 | default | 20-30 | 30 | 120s | 45s |
@@ -174,7 +133,6 @@ After both searches complete:
 | HTTP requests | 3 retries with exponential backoff (1s → 2s → 3s) |
 | Model access errors | Automatic fallback to next model in chain |
 | Reddit enrichment | Per-item try/catch; keeps unenriched item on failure |
-| X source detection | Silent fallback from Bird → xAI → skip |
 | Overall pipeline | Errors stored as `reddit_error`/`x_error`, shown to user |
 
 ---
@@ -187,8 +145,6 @@ After both searches complete:
 | `skills/last30days/scripts/lib/pipeline.py` | Multi-source retrieval orchestration |
 | `skills/last30days/scripts/lib/reddit_public.py` | Reddit public JSON search |
 | `skills/last30days/scripts/lib/reddit_enrich.py` | Fetch real engagement data from Reddit JSON API |
-| `skills/last30days/scripts/lib/xai_x.py` | X search via xAI API |
-| `skills/last30days/scripts/lib/bird_x.py` | X search via bundled Bird client (free) |
 | `skills/last30days/scripts/lib/providers.py` | Reasoning provider and model selection |
 | `skills/last30days/scripts/lib/env.py` | API key loading, source detection |
 | `skills/last30days/scripts/lib/http.py` | HTTP transport with retries |

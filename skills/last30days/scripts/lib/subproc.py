@@ -1,6 +1,6 @@
 """Subprocess helpers: safe timeout + process-group cleanup.
 
-Used by bird_x.py (Node.js Bird search) and youtube_yt.py (yt-dlp search
+Used by youtube_yt.py (yt-dlp search
 and transcript download). Both need the same os.setsid/killpg cleanup
 dance on timeout to avoid orphaning child processes.
 """
@@ -47,7 +47,7 @@ def run_with_timeout(
         timeout: Timeout in seconds passed to ``communicate()``.
         env: Optional environment dict. If None, inherits parent env.
         on_pid: Optional callable invoked with the child PID right after
-            spawn. Used by bird_x.py to register child PIDs for cleanup
+            spawn. Used by adapters to register child PIDs for cleanup
             tracking. Exceptions raised by the callback are suppressed.
 
     Returns:

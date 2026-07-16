@@ -193,7 +193,7 @@ I just researched that for you. Here's what I've got right now:
 
 {status_line}
 
-More sources means better research, but it works fine as-is. You can unlock more for free - log into x.com in your browser for X, and run `brew install yt-dlp` for YouTube transcripts. That gives you Reddit (with comments), X, YouTube, HN, and Polymarket - all free.
+More sources means better research, but it works fine as-is. Set X_BEARER_TOKEN for public X API v2 search, and run `brew install yt-dlp` for YouTube transcripts.
 
 Some examples of what you can do:
 - "last30 what are people saying about Figma"
@@ -207,30 +207,9 @@ Just start with "last30" and talk to me like normal.
 # Shorter promo for single missing key
 PROMO_SINGLE_KEY = {
     "reddit": "\n💡 Unlock TikTok and Instagram with SCRAPECREATORS_API_KEY - 10,000 free calls, no CC - scrapecreators.com\n",
-    "x": "\n💡 Unlock X: log into x.com in your browser, then re-run. "
-         "Firefox works on all platforms. Safari works on macOS (detected automatically). "
-         "Chrome, Brave, Edge, Arc, Vivaldi, Opera, or Chromium on macOS require "
-         "FROM_BROWSER=auto in .env (Keychain dialog). On Windows only Firefox is supported. "
-         "Or add AUTH_TOKEN/CT0 or XAI_API_KEY.\n",
+    "x": "\n💡 Unlock public X search by setting X_BEARER_TOKEN.\n",
     "web": "\n💡 You can unlock native grounded web search with BRAVE_API_KEY or SERPER_API_KEY.\n",
 }
-
-# Bird auth help (for local users with vendored Bird CLI)
-BIRD_AUTH_HELP = f"""
-{Colors.YELLOW}Bird authentication failed.{Colors.RESET}
-
-To fix this:
-1. Add AUTH_TOKEN and CT0 to ~/.config/last30days/.env, or to trusted .claude/last30days.env with LAST30DAYS_TRUST_PROJECT_CONFIG=1
-2. Or set XAI_API_KEY for the xAI fallback backend
-"""
-
-BIRD_AUTH_HELP_PLAIN = """
-Bird authentication failed.
-
-To fix this:
-1. Add AUTH_TOKEN and CT0 to ~/.config/last30days/.env, or to trusted .claude/last30days.env with LAST30DAYS_TRUST_PROJECT_CONFIG=1
-2. Or set XAI_API_KEY for the xAI fallback backend
-"""
 
 # Spinner frames
 SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -487,21 +466,12 @@ class ProgressDisplay:
             sys.stderr.write(PROMO_SINGLE_KEY[missing])
         sys.stderr.flush()
 
-    def show_bird_auth_help(self):
-        """Show Bird authentication help."""
-        if IS_TTY:
-            sys.stderr.write(BIRD_AUTH_HELP)
-        else:
-            sys.stderr.write(BIRD_AUTH_HELP_PLAIN)
-        sys.stderr.flush()
-
-
 def show_diagnostic_banner(diag: dict):
     """Show pre-flight source status banner when sources are missing.
 
     Args:
         diag: Dict from pipeline.diagnose() with available_sources, x_backend,
-            bird status, provider availability, and native web backend info.
+            X wrapper status, provider availability, and native web backend info.
     """
     available_sources = set(diag.get("available_sources") or [])
     has_reddit = "reddit" in available_sources
@@ -535,15 +505,10 @@ def show_diagnostic_banner(diag: dict):
 
         # X/Twitter
         if has_x:
-            username = diag.get("bird_username", "")
-            label = f"Bird ({username})" if x_backend == "bird" and username else str(x_backend or "xai").upper()
+            label = str(x_backend or "xurl").upper()
             lines.append(f"{Colors.DIM}│{Colors.RESET}  {Colors.GREEN}✅ X/Twitter{Colors.RESET} — {label}                          {Colors.DIM}│{Colors.RESET}")
         else:
-            lines.append(f"{Colors.DIM}│{Colors.RESET}  {Colors.RED}❌ X/Twitter{Colors.RESET} — No X auth or fallback key        {Colors.DIM}│{Colors.RESET}")
-            if diag.get("bird_installed"):
-                lines.append(f"{Colors.DIM}│{Colors.RESET}     └─ Add AUTH_TOKEN/CT0 or XAI_API_KEY      {Colors.DIM}│{Colors.RESET}")
-            else:
-                lines.append(f"{Colors.DIM}│{Colors.RESET}     └─ Needs Node.js 22+ (Bird is bundled)           {Colors.DIM}│{Colors.RESET}")
+            lines.append(f"{Colors.DIM}│{Colors.RESET}  {Colors.RED}❌ X/Twitter{Colors.RESET} — Set X_BEARER_TOKEN               {Colors.DIM}│{Colors.RESET}")
 
         # YouTube
         if has_youtube:
@@ -583,11 +548,7 @@ def show_diagnostic_banner(diag: dict):
         if has_x:
             lines.append("│  ✅ X/Twitter — available                            │")
         else:
-            lines.append("│  ❌ X/Twitter — No X auth or fallback key          │")
-            if diag.get("bird_installed"):
-                lines.append("│     └─ Add AUTH_TOKEN/CT0 or XAI_API_KEY           │")
-            else:
-                lines.append("│     └─ Needs Node.js 22+ (Bird is bundled)           │")
+            lines.append("│  ❌ X/Twitter — Set X_BEARER_TOKEN                 │")
 
         if has_youtube:
             lines.append("│  ✅ YouTube   — yt-dlp found                        │")

@@ -29,7 +29,7 @@ say the next run will try" — rendered as "will use". It is not an
 observation of what served a past run, and runtime failover can still
 diverge mid-run (a present-but-expired paid key passes a presence probe).
 
-Paid lanes (xai, xquik, serper, and every other API-key backend, including
+Paid lanes (serper and every other API-key backend, including
 ScrapeCreators) probe KEY PRESENCE ONLY: a dict lookup, never a network
 call or credential spend. Binary-backed lanes reuse the U1 dependency
 probe layer (``health.probe_dependency``) so a stale shim reads as BROKEN,
@@ -74,12 +74,6 @@ _SC_PRESCRIPTION = (
     "set SCRAPECREATORS_API_KEY (free 10,000-call signup: "
     f"{prescriptions.get('scrapecreators', 'key_missing').fix_cli})"
 )
-_X_COOKIES_PRESCRIPTION = (
-    "run setup with browser-cookie consent: "
-    f"{prescriptions.get('x', 'cookies_missing').fix_cli}"
-)
-
-
 @dataclass
 class BackendFinding:
     """Side-effect-free probe outcome for one backend of a chained source.
@@ -195,107 +189,29 @@ def _key_probe(name: str, key_var: str, requires: str, note: str = "") -> Callab
     return probe
 
 
-def _probe_bird(config: Dict[str, Any]) -> BackendFinding:
-    """Bird = vendored X GraphQL client (node script) + browser-cookie creds.
-
-    Cookie presence is checked FIRST, mirroring ``env._x_backend_available``'s
-    gating (``has_bird_creds and is_bird_installed()``): without cookies bird
-    is unconfigured regardless of node/script state, and the fix is the
-    cookie-consent flow — a broken node runtime must not turn an unconfigured
-    backend into an error carrying a node prescription.
-    """
-    from . import bird_x
-
-    requires = "X browser cookies (AUTH_TOKEN/CT0) + node"
-    if not (config.get("AUTH_TOKEN") and config.get("CT0")):
-        return BackendFinding(
-            name="bird",
-            status=health.MISSING,
-            detail="X browser cookies (AUTH_TOKEN/CT0) not configured",
-            prescription=_X_COOKIES_PRESCRIPTION,
-            requires=requires,
-        )
-    if not bird_x.is_bird_installed():
-        # Distinguish a missing/broken node runtime from a missing script.
-        node = health.probe_dependency("node")
-        if node.status != health.OK:
-            return BackendFinding(
-                name="bird",
-                status=node.status,
-                detail=node.detail,
-                prescription=node.prescription,
-                requires=requires,
-            )
-        return BackendFinding(
-            name="bird",
-            status=health.MISSING,
-            detail="vendored bird-search client not found",
-            prescription="reinstall the skill (npx skills add . -g -y) to restore lib/vendor/bird-search",
-            requires=requires,
-        )
-    node = health.probe_dependency("node")
-    if node.status != health.OK:
-        # Resolvable-but-broken node (stale shim) must not read as usable.
-        return BackendFinding(
-            name="bird",
-            status=node.status,
-            detail=node.detail,
-            prescription=node.prescription,
-            requires=requires,
-        )
-    return BackendFinding(
-        name="bird",
-        status=health.OK,
-        detail="browser-cookie auth (AUTH_TOKEN/CT0) configured",
-        requires=requires,
-    )
-
-
 def _probe_xurl(config: Dict[str, Any]) -> BackendFinding:
-    """xurl = official X API v2 CLI (OAuth2). Free lane; LOCAL-ONLY probe.
-
-    Doctor's no-network guarantee forbids the live ``xurl whoami`` check
-    (``xurl_x.is_available()`` — an authenticated X API call, reserved for
-    research time). This probe keys on local evidence instead: the binary
-    on PATH plus xurl's on-disk token store (~/.xurl). Stored credentials
-    read as OK with an explicit "not live-verified" caveat; an unreadable
-    token store is a typed ERROR (broken, not unconfigured).
-    """
-    from . import xurl_x
-
-    requires = "xurl CLI installed + OAuth2 login"
+    """Check the local GET-only wrapper and bearer token without network use."""
+    requires = "xurl wrapper on PATH + X_BEARER_TOKEN"
     if which("xurl") is None:
         return BackendFinding(
             name="xurl",
             status=health.MISSING,
-            detail="xurl CLI not found on PATH",
-            prescription="npm install -g xurl && xurl auth oauth2 login",
+            detail="xurl wrapper not found on PATH",
+            prescription="install the local x-api/x-url/xurl wrappers",
             requires=requires,
         )
-    store_status, store_detail = xurl_x.stored_auth_status()
-    if store_status == xurl_x.AUTH_OK:
+    if config.get("X_BEARER_TOKEN"):
         return BackendFinding(
             name="xurl",
             status=health.OK,
-            detail=(
-                "installed; stored OAuth2 credentials present; "
-                "auth not live-verified (no network)"
-            ),
-            requires=requires,
-        )
-    if store_status == xurl_x.AUTH_ERROR:
-        return BackendFinding(
-            name="xurl",
-            status=health.ERROR,
-            detail=store_detail,
-            prescription="xurl auth oauth2 login",
+            detail="GET-only API v2 wrapper and bearer token configured",
             requires=requires,
         )
     return BackendFinding(
         name="xurl",
         status=health.MISSING,
-        detail="xurl installed but not authenticated",
-        prescription="xurl auth oauth2 login",
+        detail="xurl wrapper installed but X_BEARER_TOKEN is missing",
+        prescription="set X_BEARER_TOKEN in the trusted global config",
         requires=requires,
     )
 
@@ -346,12 +262,9 @@ def _probe_reddit_public(config: Dict[str, Any]) -> BackendFinding:
 # ---------------------------------------------------------------------------
 
 _X_PROBES: Dict[str, Callable[[Dict[str, Any]], BackendFinding]] = {
-    "xai": _key_probe("xai", "XAI_API_KEY", "XAI_API_KEY (xAI/Grok live search)"),
-    "bird": _probe_bird,
     "xurl": _probe_xurl,
-    "xquik": _key_probe("xquik", "XQUIK_API_KEY", "XQUIK_API_KEY (xquik.com)"),
 }
-_X_PAID = {"xai", "xquik"}
+_X_PAID: set[str] = set()
 
 _WEB_PROBES: Dict[str, Callable[[Dict[str, Any]], BackendFinding]] = {
     "brave": _key_probe("brave", "BRAVE_API_KEY", "BRAVE_API_KEY"),
@@ -380,12 +293,7 @@ DESCRIPTORS: Dict[str, ChainDescriptor] = {
         backends=tuple(
             BackendSpec(
                 name=name,
-                requires={
-                    "xai": "XAI_API_KEY (xAI/Grok live search)",
-                    "bird": "X browser cookies (AUTH_TOKEN/CT0) + node",
-                    "xurl": "xurl CLI installed + OAuth2 login",
-                    "xquik": "XQUIK_API_KEY (xquik.com)",
-                }[name],
+                requires="xurl wrapper on PATH + X_BEARER_TOKEN",
                 probe=_X_PROBES[name],
                 paid=name in _X_PAID,
             )

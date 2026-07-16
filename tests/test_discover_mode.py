@@ -174,31 +174,6 @@ def test_domain_filter_tokenizes_non_latin_domains(domain, listing_title):
     assert pipeline._matches_discovery_domain(domain, listing_title)
 
 
-def test_x_velocity_excludes_views_and_bookmarks():
-    xquik_item = _item(
-        "xquik",
-        "x",
-        "X backend reach",
-        engagement={
-            "likes": 10,
-            "reposts": 3,
-            "replies": 2,
-            "quotes": 1,
-            "views": 100_000,
-            "bookmarks": 5_000,
-        },
-    )
-    standard_item = _item(
-        "standard",
-        "x",
-        "X backend interactions",
-        engagement={"likes": 10, "reposts": 3, "replies": 2, "quotes": 1},
-    )
-
-    assert rerank.discovery_engagement_total(xquik_item) == 16
-    assert rerank.engagement_velocity_score(
-        xquik_item, as_of_date="2026-07-10"
-    ) == rerank.engagement_velocity_score(standard_item, as_of_date="2026-07-10")
 
 
 def test_discovery_topic_name_uses_entities_shared_across_sources():
@@ -331,7 +306,7 @@ def test_discovery_reads_browser_credentials_and_does_not_schedule_pending_x():
 
     fetched_sources: list[str] = []
 
-    def fake_available_sources(config, requested_sources, *, x_pending=None, local_only=False):
+    def fake_available_sources(config, requested_sources, *, local_only=False):
         assert x_pending is False
         return ["reddit", "hackernews"] + (["x"] if x_pending is not False else [])
 
@@ -351,27 +326,6 @@ def test_discovery_reads_browser_credentials_and_does_not_schedule_pending_x():
     assert report.source_status["x"].state == "skipped-unconfigured"
 
 
-def test_authenticated_x_discovery_uses_available_backend():
-    plan = planner.build_discovery_plan(
-        "AI agents",
-        available_sources=["x"],
-    )
-    raw = pipeline._mock_discovery_items("x", plan.domain, "2026-07-10")
-    with mock.patch.object(pipeline.env, "x_backend_chain", return_value=["bird"]), \
-         mock.patch.object(pipeline, "_fetch_x_backend", return_value=(raw, "")) as fetch:
-        items, error = pipeline._fetch_discovery_source(
-            "x",
-            plan,
-            from_date="2026-06-10",
-            to_date="2026-07-10",
-            depth="default",
-            mock=False,
-            config={"AUTH_TOKEN": "dummy", "CT0": "dummy"},
-        )
-
-    assert error is None
-    assert len(items) == 6
-    fetch.assert_called_once()
 
 
 def test_listing_failure_is_not_reported_as_clean_no_results():
@@ -627,30 +581,6 @@ def test_domain_matching_preserves_non_plural_anchors():
     assert pipeline._matches_discovery_domain("AI agents", "The best AI agent stacks")
 
 
-def test_x_fallback_success_is_clean(monkeypatch):
-    from lib import pipeline, env
-
-    calls = []
-
-    def fake_fetch(backend, subquery, from_date, to_date, depth, config):
-        calls.append(backend)
-        if backend == "bird":
-            return [], "cookie expired"
-        return [object()], None
-
-    monkeypatch.setattr(pipeline, "_fetch_x_backend", fake_fetch)
-    monkeypatch.setattr(env, "x_backend_chain", lambda config: ["bird", "xquik"])
-    plan = pipeline.schema.DiscoveryPlan(
-        domain="ai agents", category=None, subreddits=[], sources=["x"],
-    )
-    items, error = pipeline._fetch_discovery_source(
-        "x", plan,
-        from_date="2026-06-11", to_date="2026-07-11", depth="quick",
-        mock=False, config={},
-    )
-    assert error is None
-    assert len(items) == 1
-    assert calls == ["bird", "xquik"]
 
 
 def _digg_envelope(*clusters: dict) -> dict:

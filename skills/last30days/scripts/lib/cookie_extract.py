@@ -260,7 +260,7 @@ def extract_firefox_cookies(
 
     Args:
         domain: The cookie domain to match (e.g. ".x.com"). Matched with LIKE %domain.
-        cookie_names: List of cookie names to extract (e.g. ["auth_token", "ct0"]).
+        cookie_names: List of cookie names to extract.
 
     Returns:
         Dict of {cookie_name: cookie_value} or None if extraction fails.

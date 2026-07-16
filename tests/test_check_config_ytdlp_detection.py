@@ -25,35 +25,6 @@ import pytest
 HOOK = Path(__file__).resolve().parents[1] / "hooks" / "scripts" / "check-config.sh"
 
 
-def _run_hook(env_overrides: dict[str, str], path_override: str | None = None) -> subprocess.CompletedProcess:
-    env = os.environ.copy()
-    for k in (
-        "LAST30DAYS_MEMORY_DIR",
-        "SETUP_COMPLETE",
-        "LAST30DAYS_CONFIG_DIR",
-        "OPENAI_API_KEY",
-        "SCRAPECREATORS_API_KEY",
-        "AUTH_TOKEN",
-        "XAI_API_KEY",
-        "CT0",
-        "BSKY_HANDLE",
-        "BSKY_APP_PASSWORD",
-        "EXA_API_KEY",
-    ):
-        env.pop(k, None)
-    env.update(env_overrides)
-    if path_override is not None:
-        env["PATH"] = path_override
-    bash_path = shutil.which("bash")
-    if bash_path is None:
-        pytest.skip("bash not on PATH")
-    return subprocess.run(
-        [bash_path, str(HOOK)],
-        capture_output=True,
-        text=True,
-        env=env,
-        timeout=30,
-    )
 
 
 def _tool_path_without_ytdlp(tmp_path: Path) -> str:
@@ -122,7 +93,6 @@ def test_new_user_with_ytdlp_says_youtube_works(tmp_path: Path):
     assert shutil.which("yt-dlp", path=path) is not None, (
         "test pre-condition: fake yt-dlp should resolve on the override PATH"
     )
-
     cfg_dir = _write_fake_last_run(tmp_path)
     result = _run_hook({"LAST30DAYS_CONFIG_DIR": cfg_dir}, path_override=path)
 
@@ -205,51 +175,3 @@ def test_setup_done_user_source_count_includes_ytdlp(tmp_path: Path):
         f"Stdout with:    {with_yt.stdout!r}\n"
         f"Stdout without: {without_yt.stdout!r}"
     )
-
-
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash not on PATH")
-def test_keychain_credentials_avoid_new_user_welcome(tmp_path: Path):
-    """macOS Keychain credentials should count as configured for the status hook."""
-    fake_bin = tmp_path / "fake_bin_keychain"
-    fake_bin.mkdir()
-
-    uname = fake_bin / "uname"
-    uname.write_text("#!/bin/sh\necho Darwin\n", encoding="utf-8")
-    uname.chmod(0o755)
-
-    security = fake_bin / "security"
-    security.write_text(
-        """#!/bin/sh
-service=""
-while [ "$#" -gt 0 ]; do
-  if [ "$1" = "-s" ]; then
-    service="$2"
-    shift 2
-  else
-    shift
-  fi
-done
-case "$service" in
-  last30days-XAI_API_KEY|last30days-SCRAPECREATORS_API_KEY) exit 0 ;;
-  *) exit 44 ;;
-esac
-""",
-        encoding="utf-8",
-    )
-    security.chmod(0o755)
-
-    cfg_dir = _write_fake_last_run(tmp_path)
-    path = f"{fake_bin}:{_tool_path_without_ytdlp(tmp_path)}"
-    result = _run_hook(
-        {
-            "HOME": str(tmp_path),
-            "LAST30DAYS_CONFIG_DIR": cfg_dir,
-        },
-        path_override=path,
-    )
-
-    assert result.returncode == 0, f"hook failed: stderr={result.stderr!r}"
-    assert "Ready to use. Run /last30days" not in result.stdout
-    assert "Ready" in result.stdout
-    assert "sources active" in result.stdout
-    assert "Tip: Add ScrapeCreators" not in result.stdout

@@ -1,6 +1,6 @@
 """First-run setup wizard for last30days.
 
-Detects first run, performs auto-setup (cookie extraction + yt-dlp check),
+Detects first run, performs auto-setup (optional non-X cookie extraction + yt-dlp check),
 and writes configuration. The actual wizard UI is SKILL.md-driven (the LLM
 presents it), but this module provides the detection and setup actions.
 """
@@ -34,7 +34,7 @@ _WELCOME_TEXT = """Welcome to /last30days! I research any topic across Reddit, X
 I synthesize what people are actually saying right now across social, news, and market sources.
 
 Auto setup gives you the core sources free in about 30 seconds:
-- X/Twitter - reads your browser cookies to authenticate (read live each run, never saved to disk). I check Chrome first (fastest - a one-time macOS Keychain prompt may appear; click Always Allow), then Firefox and Safari.
+- X/Twitter - uses the read-only X API v2 wrapper with X_BEARER_TOKEN.
 - Reddit with comments - public JSON, no API key needed.
 - YouTube search + transcripts - installs yt-dlp (open source, 190K+ GitHub stars).
 - Digg - trending news, GitHub stars, and pipeline feeds - installs the free, keyless Digg CLI.
@@ -546,7 +546,7 @@ def get_setup_status_text(results: Dict[str, Any]) -> str:
         for source, browser in cookies_found.items():
             lines.append(f"  - {source.upper()} cookies found in {browser}")
     else:
-        lines.append("  - No browser cookies found for X/Twitter")
+        lines.append("  - No optional browser cookies found")
 
     ytdlp_action = results.get("ytdlp_action", "")
     if ytdlp_action == "installed":
@@ -638,12 +638,11 @@ def get_setup_status_text(results: Dict[str, Any]) -> str:
 
 _OPENCLAW_KEY_NAMES = [
     "SCRAPECREATORS_API_KEY",
-    "XAI_API_KEY",
+    "X_BEARER_TOKEN",
     "BRAVE_API_KEY",
     "EXA_API_KEY",
     "SERPER_API_KEY",
     "OPENAI_API_KEY",
-    "AUTH_TOKEN",
 ]
 
 
@@ -663,16 +662,11 @@ def run_openclaw_setup(config: Dict[str, Any]) -> Dict[str, Any]:
     keys: Dict[str, bool] = {}
     for key_name in _OPENCLAW_KEY_NAMES:
         short = key_name.lower().replace("_api_key", "").replace("_key", "").replace("_token", "")
-        # Normalize: AUTH_TOKEN -> auth, SCRAPECREATORS_API_KEY -> scrapecreators
+        # Normalize credential names for compact status output.
         keys[short] = bool(config.get(key_name))
 
     # Determine x_method
-    if config.get("XAI_API_KEY"):
-        x_method: Optional[str] = "xai"
-    elif config.get("AUTH_TOKEN") and config.get("CT0"):
-        x_method = "cookies"
-    else:
-        x_method = None
+    x_method: Optional[str] = "xurl" if config.get("X_BEARER_TOKEN") else None
 
     payload: Dict[str, Any] = {
         "yt_dlp": yt_dlp,

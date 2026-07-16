@@ -73,21 +73,17 @@ def _entry(source: str, failure: str, **kwargs) -> Tuple[Tuple[str, str], Prescr
 
 REGISTRY: Dict[Tuple[str, str], Prescription] = dict((
     _entry(
-        "x", "cookies_missing",
-        cause="X browser cookies (AUTH_TOKEN/CT0) are not configured",
-        fix_nl=(
-            "log into x.com in your browser and re-run (cookies detected "
-            "automatically), or add XAI_API_KEY to your .env (get key at "
-            "api.x.ai), or add XQUIK_API_KEY to your .env (get key at xquik.com)"
-        ),
-        fix_cli=SETUP_BROWSER_COOKIES_CLI,
+        "x", "bearer_missing",
+        cause="X_BEARER_TOKEN is not configured",
+        fix_nl="set X_BEARER_TOKEN in the trusted global config",
+        fix_cli="export X_BEARER_TOKEN=REPLACE_ME",
         anchor="api-keys-env",
     ),
     _entry(
-        "x", "cookies_expired",
-        cause="X errored this run: cookies are configured but likely expired or revoked",
-        fix_nl="log into x.com in your browser, then re-run",
-        fix_cli=SETUP_BROWSER_COOKIES_CLI,
+        "x", "bearer_failed",
+        cause="the X API v2 bearer request failed",
+        fix_nl="verify X_BEARER_TOKEN and re-run",
+        fix_cli="export X_BEARER_TOKEN=REPLACE_ME",
         anchor="api-keys-env",
     ),
     _entry(

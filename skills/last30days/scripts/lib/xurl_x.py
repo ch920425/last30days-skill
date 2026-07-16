@@ -1,21 +1,10 @@
-"""X (Twitter) search via xurl CLI — official X API v2 with OAuth2.
-
-xurl is an open-source CLI for the X API (https://github.com/openclaw/xurl).
-It uses OAuth2 with PKCE and automatic token refresh, requiring only a free
-X Developer App. No xAI subscription or browser cookies needed.
-
-Install: npm install -g xurl
-Auth:    xurl auth oauth2 login
-
-Priority: xAI API > Bird/GraphQL > xurl > web-only fallback
-"""
+"""Public X search through the local GET-only X API v2 wrapper."""
 
 import json
+import os
 import re
-import shutil
 import subprocess
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from . import log
 from .relevance import token_overlap_relevance as _compute_relevance
@@ -33,123 +22,29 @@ DEPTH_CONFIG = {
 }
 
 
-# Memoized availability, mirroring health.py's per-process dependency-probe
-# cache: each uncached is_available() check spawns an `xurl whoami`
-# subprocess (a live, authenticated X API call). The doctor/safe-diagnose
-# path never uses it — see stored_auth_status()/has_stored_auth() below —
-# but research-time callers may consult it more than once per process.
-# None means "not yet probed".
-_availability_cache: Optional[bool] = None
+def is_available(bearer_token: str | None = None) -> bool:
+    """Return whether the hardened wrapper and bearer token are available."""
+    import shutil
+
+    token = bearer_token or os.environ.get("X_BEARER_TOKEN")
+    return shutil.which("xurl") is not None and bool(str(token or "").strip())
+
+
+def has_stored_auth(bearer_token: str | None = None) -> bool:
+    """Compatibility alias for local availability checks."""
+    return is_available(bearer_token)
 
 
 def clear_availability_cache() -> None:
-    """Reset the memoized is_available() result (tests, or a re-check after auth)."""
-    global _availability_cache
-    _availability_cache = None
-
-
-def is_available() -> bool:
-    """Check if xurl is installed and has valid authentication.
-
-    Returns True only if xurl binary is found AND the user is authenticated
-    (i.e. ``xurl whoami`` exits 0 and returns a username field).
-    Memoized per process; ``clear_availability_cache()`` resets.
-    """
-    global _availability_cache
-    if _availability_cache is None:
-        _availability_cache = _is_available_uncached()
-    return _availability_cache
-
-
-def _is_available_uncached() -> bool:
-    try:
-        result = subprocess.run(
-            ["xurl", "whoami"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        return result.returncode == 0 and '"username"' in result.stdout
-    except (OSError, subprocess.TimeoutExpired):
-        # OSError covers FileNotFoundError (no xurl on PATH) and
-        # PermissionError (a non-executable match on PATH, e.g. WSL's
-        # /mnt/c/.../WindowsApps shim returning EACCES on exec).
-        return False
-
-
-# ---------------------------------------------------------------------------
-# Local auth evidence (doctor / safe-diagnose path — no subprocess, no
-# network).
-#
-# xurl persists OAuth credentials to an on-disk token store at ~/.xurl
-# (YAML in current releases; legacy versions wrote JSON — see the upstream
-# store package at github.com/xdevplatform/xurl). A populated store is the
-# strongest LOCAL evidence of authentication obtainable without spending a
-# network call, so doctor keys on it and reports "auth not live-verified"
-# instead of running `xurl whoami` (a real, authenticated X API request
-# that would violate doctor's no-network guarantee).
-# ---------------------------------------------------------------------------
-
-AUTH_OK = "ok"            # token store present with stored credentials
-AUTH_MISSING = "missing"  # no token store, or no credentials stored in it
-AUTH_ERROR = "error"      # token store exists but could not be read
-
-# Substrings a populated store carries in both the YAML and legacy JSON
-# formats (per-user oauth2 token blocks, or an app-only bearer token).
-_TOKEN_STORE_MARKERS = (
-    "access_token",
-    "bearer_token",
-    "oauth2_tokens",
-    "oauth1_tokens",
-)
-
-
-def token_store_path() -> Path:
-    """xurl's on-disk OAuth token store (~/.xurl)."""
-    return Path.home() / ".xurl"
-
-
-def stored_auth_status() -> Tuple[str, str]:
-    """Local-only evidence of xurl authentication: ``(status, detail)``.
-
-    Reads only the on-disk token store — never spawns xurl, never touches
-    the network. ``status`` is AUTH_OK (store holds credentials),
-    AUTH_MISSING (no store / empty store / no credential markers), or
-    AUTH_ERROR (store exists but cannot be read — surfaced as a typed
-    error, not as "unconfigured").
-    """
-    path = token_store_path()
-    try:
-        if not path.is_file():
-            return AUTH_MISSING, f"no token store at {path}"
-        content = path.read_text(encoding="utf-8", errors="replace")
-    except OSError as exc:
-        return (
-            AUTH_ERROR,
-            f"token store {path} unreadable: {type(exc).__name__}: {exc}",
-        )
-    if any(marker in content for marker in _TOKEN_STORE_MARKERS):
-        return AUTH_OK, f"stored OAuth credentials found in {path}"
-    return AUTH_MISSING, f"token store {path} has no stored credentials"
-
-
-def has_stored_auth() -> bool:
-    """Local-only availability: xurl on PATH with stored credentials.
-
-    The doctor/safe-diagnose counterpart of ``is_available()`` — the same
-    "installed and authenticated" question answered from local evidence
-    only (PATH lookup + token store), never a live ``xurl whoami``. A
-    broken token store reads as unavailable here; the doctor probe layer
-    (``backends._probe_xurl``) reports that case as a typed error.
-    """
-    return shutil.which("xurl") is not None and stored_auth_status()[0] == AUTH_OK
+    """Compatibility no-op; availability is intentionally checked fresh."""
 
 
 def search_x(
     query: str,
     depth: str = "default",
+    bearer_token: str | None = None,
 ) -> Dict[str, Any]:
-    """Search X via xurl CLI using X API v2 search/recent.
+    """Search public X posts through the API v2 recent-search endpoint.
 
     Args:
         query: Search query string
@@ -164,11 +59,29 @@ def search_x(
     max_results = max(10, min(100, max_results))
 
     try:
+        child_env = os.environ.copy()
+        if bearer_token:
+            child_env["X_BEARER_TOKEN"] = bearer_token
         result = subprocess.run(
-            ["xurl", "search", query, "-n", str(max_results)],
+            [
+                "xurl",
+                "/tweets/search/recent",
+                "--get",
+                "--data-urlencode",
+                f"query={query}",
+                "--data-urlencode",
+                f"max_results={max_results}",
+                "--data-urlencode",
+                "tweet.fields=author_id,created_at,public_metrics,text",
+                "--data-urlencode",
+                "expansions=author_id",
+                "--data-urlencode",
+                "user.fields=username,name",
+            ],
             capture_output=True,
             text=True,
             timeout=30,
+            env=child_env,
         )
 
         if result.returncode != 0:
@@ -193,7 +106,7 @@ def parse_x_response(
 ) -> List[Dict[str, Any]]:
     """Parse xurl search response into normalized item dicts.
 
-    Output format matches the existing XItem schema used by xai_x and bird_x:
+    Output format matches the existing X item schema:
     id, text, url, author_handle, date, engagement, why_relevant, relevance.
 
     Args:
