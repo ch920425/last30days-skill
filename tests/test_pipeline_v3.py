@@ -7,6 +7,36 @@ from lib import http
 from lib import schema
 
 
+class DepthSettingsOverrideTests(unittest.TestCase):
+    def test_no_overrides_returns_depth_defaults(self):
+        settings = pipeline._resolve_depth_settings("deep", {})
+        self.assertEqual(pipeline.DEPTH_SETTINGS["deep"], settings)
+
+    def test_overrides_raise_caps_and_do_not_mutate_module_defaults(self):
+        before = dict(pipeline.DEPTH_SETTINGS["deep"])
+        settings = pipeline._resolve_depth_settings(
+            "deep", {"_max_per_source": 60, "_max_results": 200}
+        )
+        self.assertEqual(60, settings["per_stream_limit"])
+        self.assertEqual(200, settings["pool_limit"])
+        self.assertEqual(200, settings["rerank_limit"])
+        # Module-level defaults must be untouched (issue #716 regression guard).
+        self.assertEqual(before, pipeline.DEPTH_SETTINGS["deep"])
+
+    def test_overrides_can_also_lower_caps(self):
+        settings = pipeline._resolve_depth_settings("deep", {"_max_results": 10})
+        self.assertEqual(10, settings["rerank_limit"])
+
+    def test_zero_override_is_honored_not_swallowed(self):
+        # 0 is a valid explicit value (e.g. disable a source), not "unset".
+        settings = pipeline._resolve_depth_settings(
+            "deep", {"_max_results": 0, "_max_per_source": 0}
+        )
+        self.assertEqual(0, settings["pool_limit"])
+        self.assertEqual(0, settings["rerank_limit"])
+        self.assertEqual(0, settings["per_stream_limit"])
+
+
 class PipelineV3Tests(unittest.TestCase):
     def test_mock_pipeline_report_without_live_credentials(self):
         report = pipeline.run(
@@ -242,6 +272,33 @@ class TestSourceFetchCap(unittest.TestCase):
             len(x_calls), 2,
             f"X should be fetched at most 2 times, got {len(x_calls)}",
         )
+
+    @patch("lib.pipeline._retrieve_stream")
+    def test_zero_source_fetch_override_suppresses_capped_source(self, mock_retrieve):
+        """A 0 override is explicit and should suppress capped-source submissions."""
+        mock_retrieve.side_effect = lambda **kwargs: pipeline._mock_stream_results(
+            kwargs["source"], kwargs["subquery"]
+        )
+        pipeline.run(
+            topic="compare iPhone vs Android vs Pixel vs Samsung",
+            config={
+                "LAST30DAYS_REASONING_PROVIDER": "gemini",
+                "_max_source_fetches": 0,
+            },
+            depth="quick",
+            requested_sources=["reddit", "x"],
+            mock=True,
+        )
+        x_calls = [
+            call for call in mock_retrieve.call_args_list
+            if call.kwargs.get("source") == "x"
+        ]
+        reddit_calls = [
+            call for call in mock_retrieve.call_args_list
+            if call.kwargs.get("source") == "reddit"
+        ]
+        self.assertEqual([], x_calls)
+        self.assertGreater(len(reddit_calls), 0)
 
 
 class TestRateLimitSharing(unittest.TestCase):

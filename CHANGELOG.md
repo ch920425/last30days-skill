@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.16.0] - 2026-07-15
+
+### Added
+
+- YouTube comments now fetch free via yt-dlp first; ScrapeCreators is a failure-only fallback, dropping the paid-key requirement for comment enrichment. ([#827](https://github.com/mvanhorn/last30days-skill/pull/827))
+- `GITHUB_TOKEN` is registered end-to-end (.env, keychain, setup scripts, doctor) so the GitHub source stops rate-limiting keyed users. ([#793](https://github.com/mvanhorn/last30days-skill/pull/793))
+- Opt-in overridable per-source result caps for high-volume topics; defaults unchanged when unset. ([#717](https://github.com/mvanhorn/last30days-skill/pull/717))
+- `OPENROUTER_BASE_URL` override, mirroring the existing OPENAI/XAI base-URL knobs. ([#703](https://github.com/mvanhorn/last30days-skill/pull/703))
+- `LAST30DAYS_MCP_TIMEOUT` accepts bare integer seconds as documented, not just Go duration strings. ([#765](https://github.com/mvanhorn/last30days-skill/pull/765))
+
+### Fixed
+
+- Keyless web search now works on hosts where DuckDuckGo anomaly-blocks the egress IP (a 202 challenge page with no results — common on datacenter/VPS IPs). Added Startpage as a second keyless rung (DuckDuckGo → Startpage → configured SearXNG), so the web floor still returns results there. Also hardened `_strip_html` to drop `<style>`/`<script>` contents so inline CSS can't leak into a title or snippet.
+- Web/grounding results are no longer discarded when one of them is a reddit.com URL whose enrichment fetch fails. Reddit enrichment is a best-effort secondary fetch; its HTTP failures (e.g. a 403 on a datacenter IP) were being attributed to the whole web source, which then reported "0 items — HTTP 403" despite having retrieved good results. Its failures are now isolated from the source's outcome.
+- Very long topic names no longer crash `save_output` (ENAMETOOLONG): slugify truncates at 180 chars with a stable hash suffix so distinct topics stay distinct. ([#786](https://github.com/mvanhorn/last30days-skill/pull/786))
+- Quick depth honors the plan's explicit sources instead of trimming them away. ([#664](https://github.com/mvanhorn/last30days-skill/pull/664))
+- X search on Windows/Node 24: valid Bird CLI JSON on stdout is trusted even when the process exits non-zero. ([#813](https://github.com/mvanhorn/last30days-skill/pull/813))
+- 17 `.get(key, 0)` sites are now None-safe, fixing sort/math crashes on stored data with null fields. ([#822](https://github.com/mvanhorn/last30days-skill/pull/822))
+- Non-ASCII characters in URLs are percent-encoded component-wise before urllib, fixing the latin-1 encode crash. ([#822](https://github.com/mvanhorn/last30days-skill/pull/822), supersedes [#821](https://github.com/mvanhorn/last30days-skill/pull/821))
+- `LAST30DAYS_DEBUG` is registered and resolved lazily, fixing an HTTP debug-mode AttributeError. ([#770](https://github.com/mvanhorn/last30days-skill/pull/770))
+- `DEGRADED_TRANSCRIPT_THRESHOLD` set in .env is picked up. ([#807](https://github.com/mvanhorn/last30days-skill/pull/807))
+- One bad video no longer marks the whole ScrapeCreators transcript source failed. ([#830](https://github.com/mvanhorn/last30days-skill/pull/830))
+- Chromium cookie temp copies keep 0600 permissions for their whole lifetime. ([#764](https://github.com/mvanhorn/last30days-skill/pull/764))
+- Thin-source retries forward pinned subreddits/hashtags/creators instead of retrying generically. ([#795](https://github.com/mvanhorn/last30days-skill/pull/795))
+
 ## [3.15.0] - 2026-07-14
 
 ### Added

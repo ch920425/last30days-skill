@@ -134,7 +134,7 @@ python3 skills/last30days/scripts/last30days.py "MCP servers" \
 | GitHub | `gh` CLI installed (uses your GitHub auth) | always on if `gh` present | yes |
 | YouTube | `yt-dlp` CLI installed; `SCRAPECREATORS_API_KEY` adds a server-side transcript fallback used only when yt-dlp fails (429 / bot-gate) | always on if `yt-dlp` present; SC transcript fallback default-on when key set (no credit spent unless yt-dlp fails) | yes |
 | X / Twitter | `X_BEARER_TOKEN` + local GET-only `xurl` wrapper | public API v2 recent search | subject to the X API plan |
-| YouTube comments | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `youtube_comments` (**on by default** — written by the Step 5 Recommended tier) | top comments (by likes) on the top ~3 videos by engagement | ~3 calls/run; 10K free calls |
+| YouTube comments | `yt-dlp` CLI installed — **free and keyless, no API key and no opt-in needed**. Falls back to `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` containing `youtube_comments` only when yt-dlp is absent. Suppress with `EXCLUDE_SOURCES=youtube_comments`. | top comments (by likes) on the top ~3 videos by engagement | yes — free via yt-dlp (no credits spent) |
 | TikTok comments | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `tiktok_comments` (**on by default** — Step 5 Recommended tier) | top comments (by `digg_count`) on the top ~3 TikTok posts | ~3 calls/run; 10K free calls |
 | Instagram comments | `SCRAPECREATORS_API_KEY` + `INCLUDE_SOURCES` contains `instagram_comments` (**on by default** — Step 5 Recommended tier) | top comments (by `comment_like_count`) on the top ~3 Instagram posts, via `/v2/instagram/post/comments` | ~3 calls/run; 10K free calls |
 | Digg | `digg-pp-cli` on PATH (auto-installed during first-run setup via `npx -y @mvanhorn/printing-press-library@0.1.16 install digg --cli-only`; binary defaults to `$HOME/.local/bin` — Hermes/OpenClaw agent subprocesses must inherit that dir on PATH for Digg to activate; prior pp-digg installs use the same path) | always on if `digg-pp-cli` on PATH | yes (free, keyless, read-only) |
@@ -403,6 +403,14 @@ By default a research run exits `0` even when a source failed mid-run (rate-limi
 | `LAST30DAYS_STRICT_EXIT` | Truthy (`1`/`true`/`yes`/`on`): the engine exits `3` when any source outcome is neither `ok`, `no-results`, nor `skipped-unconfigured`. A one-line `strict-exit: degraded sources: ...` note goes to stderr. Default (unset): exit `0`, unchanged behavior. |
 
 Exit codes with the flag on: `0` clean run, `3` completed-but-degraded (report was produced), non-zero others unchanged (hard failures). Same hybrid pattern as `LAST30DAYS_DEBUG` — works shell-exported or in `.env`.
+
+---
+
+## Debug mode (`--debug`)
+
+Add `--debug` to any run to emit verbose `[DEBUG]` log lines to stderr from the source modules (X API, HTTP, etc.). Helpful for diagnosing API errors or unexpected behavior.
+
+**Always-on alternative:** set `LAST30DAYS_DEBUG=true` in your `.env` or export it from your shell. The flag still works as before; the env var is purely additive — works whether shell-exported or set in `.env`.
 
 ---
 

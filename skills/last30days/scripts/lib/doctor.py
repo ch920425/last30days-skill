@@ -429,12 +429,13 @@ def _youtube_record(config):
             "captions for caption-free videos"
         )
         record["fix"] = _fix_text(entry)
-    # Comment *text* comes from ScrapeCreators, never yt-dlp (yt-dlp yields
-    # search, transcripts, and a comment count only). Say so accurately so a
-    # user does not expect yt-dlp to surface comment text.
+    # Comment *text* is free via yt-dlp, so this caveat only fires when yt-dlp
+    # is absent and the legacy ScrapeCreators path is the only one left. Never
+    # prescribe a paid key for something the installed toolchain already does.
     if not env.is_youtube_comments_available(config):
         notes.append(
-            "comment text needs a ScrapeCreators key + youtube_comments opt-in"
+            "comment text needs yt-dlp (free) or a ScrapeCreators key "
+            "+ youtube_comments opt-in"
         )
         # Actionable fix, matching the transcription branch. The transcription
         # fix takes precedence when both caveats fire (one fix line per record).
@@ -465,7 +466,7 @@ def _polymarket_record(config):
 
 
 def _github_record(config):
-    authed = bool(env.read_secret_env("GITHUB_TOKEN") or shutil.which("gh"))
+    authed = bool(config.get("GITHUB_TOKEN") or env.read_secret_env("GITHUB_TOKEN") or shutil.which("gh"))
     detail = (
         "authenticated tier (GITHUB_TOKEN or gh CLI)"
         if authed

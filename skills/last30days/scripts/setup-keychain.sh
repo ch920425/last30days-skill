@@ -37,6 +37,7 @@ ALL_KEYS=(
   PERPLEXITY_API_KEY
   PARALLEL_API_KEY
   XIAOHONGSHU_API_BASE
+  GITHUB_TOKEN
 )
 
 if [[ "${OSTYPE:-}" != darwin* ]]; then
