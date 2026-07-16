@@ -23,7 +23,7 @@ from unittest import mock
 
 import pytest
 
-from lib import backends, env, health, xurl_x
+from lib import backends, env, health
 
 
 # ---------------------------------------------------------------------------
@@ -49,38 +49,15 @@ def _probe_dep(status_map=None, default_status=health.OK):
     return fake
 
 
-def _x_env(
-    bird_installed=False,
-    xurl_installed=False,
-    xurl_authed=False,
-    node_status=health.OK,
-):
+def _x_env(bird_installed=False, node_status=health.OK):
     """Context managers configuring the X-chain probe environment.
 
-    ``xurl_authed`` drives BOTH auth surfaces consistently: the research-time
-    network check (``is_available``) and the doctor-path local evidence
-    (``stored_auth_status``/``has_stored_auth``) — a real machine where the
-    user logged in has both.
+    X OAuth/xurl is intentionally absent from this plugin's chain.
     """
-    stored = (
-        (xurl_x.AUTH_OK, "stored OAuth credentials found in ~/.xurl")
-        if xurl_authed
-        else (xurl_x.AUTH_MISSING, "no token store at ~/.xurl")
-    )
     return (
         mock.patch("lib.bird_x.is_bird_installed", return_value=bird_installed),
         mock.patch("lib.bird_x.set_credentials", lambda *a, **k: None),
-        mock.patch("lib.xurl_x.is_available", return_value=xurl_authed),
-        mock.patch(
-            "lib.backends.which",
-            lambda name: "/usr/local/bin/xurl" if (name == "xurl" and xurl_installed) else None,
-        ),
         mock.patch("lib.health.probe_dependency", _probe_dep({"node": node_status})),
-        mock.patch("lib.xurl_x.stored_auth_status", return_value=stored),
-        mock.patch(
-            "lib.xurl_x.has_stored_auth",
-            return_value=xurl_installed and xurl_authed,
-        ),
     )
 
 
@@ -115,7 +92,7 @@ class TestDescriptorRegistry:
         d = backends.get_descriptor("x")
         assert d.mode == backends.MODE_ALTERNATIVE
         assert tuple(s.name for s in d.backends) == env.X_BACKEND_ORDER
-        assert env.X_BACKEND_ORDER == ("xai", "bird", "xurl", "xquik")
+        assert env.X_BACKEND_ORDER == ("xai", "bird", "xquik")
         assert d.pin_var == env.X_BACKEND_PIN_VAR == "LAST30DAYS_X_BACKEND"
 
     def test_env_exposes_reddit_pin_constants(self):
@@ -180,14 +157,14 @@ class TestXPrediction:
 
     # Scenario 3: installed-but-unauthenticated preferred backend must not
     # shadow a fully usable fallback (collect-then-pick).
-    def test_unauthenticated_preferred_does_not_shadow_usable_fallback(self):
+    def test_missing_bird_credentials_do_not_shadow_usable_fallback(self):
         config = {"XQUIK_API_KEY": "dummy-key"}
-        res = _resolve_x(config, xurl_installed=True, xurl_authed=False)
+        res = _resolve_x(config)
         assert res.active_backend == "xquik"
         assert res.tier == backends.TIER_OK
-        xurl = next(f for f in res.findings if f.name == "xurl")
-        assert not xurl.usable
-        assert "auth" in (xurl.detail + xurl.prescription).lower()
+        bird = next(f for f in res.findings if f.name == "bird")
+        assert not bird.usable
+        assert "cookie" in (bird.detail + bird.prescription).lower()
 
     # Scenario 4: nothing usable -> error tier, highest-priority prescription.
     def test_no_backend_usable_is_error_with_top_priority_prescription(self):
@@ -291,102 +268,6 @@ class TestPaidLaneProbes:
                 absent = spec.probe({})
                 assert absent.status == health.MISSING
                 assert key in absent.prescription
-
-
-# ---------------------------------------------------------------------------
-# F1 + F10: the doctor-path xurl probe is LOCAL-ONLY (stored-token evidence,
-# never a live `xurl whoami` — doctor's no-network guarantee) and typed.
-# ---------------------------------------------------------------------------
-
-class TestXurlLocalProbe:
-    def _spec(self):
-        return next(
-            s for s in backends.get_descriptor("x").backends if s.name == "xurl"
-        )
-
-    def _finding(self, stored, installed=True):
-        """Run the xurl probe under the forbid-all-I/O harness."""
-        ctxs = _forbid_io()
-        with ctxs[0], ctxs[1], ctxs[2], ctxs[3], ctxs[4], \
-             mock.patch(
-                 "lib.backends.which",
-                 lambda n: "/usr/local/bin/xurl" if installed else None,
-             ), \
-             mock.patch("lib.xurl_x.stored_auth_status", return_value=stored):
-            return self._spec().probe({})
-
-    def test_token_store_present_is_ok_without_network(self):
-        finding = self._finding(
-            (xurl_x.AUTH_OK, "stored OAuth credentials found in ~/.xurl")
-        )
-        assert finding.status == health.OK
-        assert "not live-verified" in finding.detail
-
-    def test_no_token_store_is_missing_with_auth_prescription(self):
-        finding = self._finding((xurl_x.AUTH_MISSING, "no token store at ~/.xurl"))
-        assert finding.status == health.MISSING
-        assert "not authenticated" in finding.detail
-        assert "xurl auth oauth2 login" in finding.prescription
-
-    def test_unreadable_token_store_is_error_tier(self):
-        # F10: binary resolvable but the token-store read fails -> typed
-        # ERROR (doctor's error tier), never "unconfigured".
-        finding = self._finding(
-            (
-                xurl_x.AUTH_ERROR,
-                "token store ~/.xurl unreadable: PermissionError: denied",
-            )
-        )
-        assert finding.status == health.ERROR
-        assert not finding.usable
-        assert "unreadable" in finding.detail
-
-    def test_binary_absent_stays_not_installed(self):
-        finding = self._finding((xurl_x.AUTH_OK, "irrelevant"), installed=False)
-        assert finding.status == health.MISSING
-        assert "not found on PATH" in finding.detail
-
-    def test_whole_doctor_path_x_probe_makes_no_network_or_subprocess(self, tmp_path):
-        """The full X chain resolution plus the safe get_x_source_status —
-        the exact X probes doctor runs — under the forbid-everything
-        harness. The token store is a REAL file so the genuine
-        stored_auth_status code path (filesystem only) is exercised."""
-        store = tmp_path / ".xurl"
-        store.write_text(
-            "apps:\n  app:\n    oauth2_tokens:\n      me:\n        oauth2:\n"
-            "          access_token: dummy-not-real\n",
-            encoding="utf-8",
-        )
-        config = {"AUTH_TOKEN": "dummy-token", "CT0": "dummy-ct0"}
-        bird_status = {
-            "installed": True,
-            "authenticated": True,
-            "username": "env AUTH_TOKEN",
-            "can_install": True,
-        }
-        ctxs = _forbid_io()
-        with ctxs[0], ctxs[1], ctxs[2], ctxs[3], ctxs[4], \
-             mock.patch(
-                 "lib.xurl_x.is_available",
-                 side_effect=AssertionError(
-                     "doctor path ran the live `xurl whoami` network check"
-                 ),
-             ), \
-             mock.patch("lib.xurl_x.token_store_path", return_value=store), \
-             mock.patch("lib.backends.which", lambda n: f"/usr/local/bin/{n}"), \
-             mock.patch(
-                 "lib.xurl_x.shutil.which", lambda n: f"/usr/local/bin/{n}"
-             ), \
-             mock.patch("lib.health.probe_dependency", _probe_dep()), \
-             mock.patch("lib.bird_x.is_bird_installed", return_value=True), \
-             mock.patch("lib.bird_x.set_credentials", lambda *a, **k: None), \
-             mock.patch("lib.bird_x.get_bird_status", return_value=bird_status):
-            res = backends.resolve("x", config)
-            status = env.get_x_source_status(config, probe=False)
-        xurl_finding = next(f for f in res.findings if f.name == "xurl")
-        assert xurl_finding.status == health.OK
-        assert "not live-verified" in xurl_finding.detail
-        assert status["xurl_available"] is True
 
 
 # ---------------------------------------------------------------------------

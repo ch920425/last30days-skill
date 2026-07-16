@@ -728,10 +728,6 @@ def get_x_source_with_method(config: dict[str, Any]) -> tuple[str | None, str]:
     if config.get("AUTH_TOKEN") and config.get("CT0"):
         method = config.get("_AUTH_TOKEN_SOURCE", "env")
         return "bird", method
-    # Fall back to xurl CLI (official X API v2, OAuth2, free developer app)
-    from . import xurl_x
-    if xurl_x.is_available():
-        return "xurl", "oauth2"
     return None, "none"
 
 
@@ -762,9 +758,8 @@ def get_reddit_source(config: dict[str, Any]) -> str | None:
 # interchangeable backends, never run in parallel.
 #   xai   — xAI/Grok live search (XAI_API_KEY)
 #   bird  — X GraphQL scrape via the user's browser cookies (AUTH_TOKEN/CT0)
-#   xurl  — official X API v2 (xurl CLI, OAuth2)
 #   xquik — key-based REST X search (XQUIK_API_KEY); keyless of browser cookies
-_X_BACKEND_ORDER = ("xai", "bird", "xurl", "xquik")
+_X_BACKEND_ORDER = ("xai", "bird", "xquik")
 
 # Public routing definitions for the doctor/backend-descriptor layer
 # (lib/backends.py). These are aliases for knowledge this module already
@@ -787,13 +782,6 @@ def _x_backend_available(
     if backend == 'bird':
         from . import bird_x
         return has_bird_creds and bird_x.is_bird_installed()
-    if backend == 'xurl':
-        from . import xurl_x
-        if local_only:
-            # Doctor/safe-diagnose path: local evidence only (PATH lookup +
-            # token store) — never the live `xurl whoami` network call.
-            return xurl_x.has_stored_auth()
-        return xurl_x.is_available()
     if backend == 'xquik':
         return is_xquik_available(config)
     return False
@@ -811,10 +799,8 @@ def x_backend_chain(config: dict[str, Any], local_only: bool = False) -> list[st
     (automatic Keychain access causes popups); bird counts as available only
     when AUTH_TOKEN and CT0 are present explicitly.
 
-    ``local_only=True`` is the doctor/safe-diagnose flavor: availability is
-    answered from local evidence only (no subprocess spawns that reach the
-    network — xurl's live `whoami` check is replaced by its on-disk token
-    store). Research-time callers keep the default live semantics.
+    ``local_only=True`` is the doctor/safe-diagnose flavor. It avoids network
+    probes while preserving configured backend selection.
     """
     from . import bird_x
     has_bird_creds = bool(config.get('AUTH_TOKEN') and config.get('CT0'))
@@ -859,12 +845,10 @@ def x_pending_browser_auth(config: dict[str, Any], local_only: bool = False) -> 
     contract of diagnose/preflight is preserved.
 
     Returns False whenever X is already available outright (static AUTH_TOKEN/CT0,
-    or xAI/xurl/xquik backend), and in ``read`` mode (a real run has already
+    or xAI/xquik backend), and in ``read`` mode (a real run has already
     extracted creds, so its status must be unchanged — never "pending").
     """
-    # Already available via a static backend (bird creds, xAI, xurl, xquik).
-    # local_only (doctor/safe-diagnose) answers the xurl leg from the token
-    # store instead of the live `xurl whoami` network call.
+    # Already available via a static backend (bird creds, xAI, xquik).
     if get_x_source(config, local_only=local_only):
         return False
     # Only meaningful in inspection modes that skip extraction; a real ``read``
@@ -1165,10 +1149,8 @@ def get_x_source_status(config: dict[str, Any], probe: bool = False) -> dict[str
             ``bird_authenticated`` to False when X clearly returns nothing,
             so ``--diagnose`` reflects runtime reality instead of static
             credential presence. A transient timeout leaves the status
-            unchanged (fail open). When False (the safe/diagnose path that
-            doctor uses), NO network is touched: xurl availability comes
-            from local evidence (``xurl_x.has_stored_auth``), never the
-            live ``xurl whoami`` call.
+            unchanged (fail open). When False, the safe/diagnose path does
+            not perform a network probe.
 
     Returns:
         Dict with keys: source, bird_installed, bird_authenticated,
@@ -1208,13 +1190,6 @@ def get_x_source_status(config: dict[str, Any], probe: bool = False) -> dict[str
         else:
             xquik_status = "configured (not probed)"
 
-    # Xurl availability, computed ONCE. probe=True (a live diagnose) may run
-    # the real `xurl whoami`; probe=False is the safe path (doctor,
-    # --diagnose, --preflight) and must stay local-only — the live check is
-    # an authenticated X API network call.
-    from . import xurl_x as _xurl_x
-    xurl_available = _xurl_x.is_available() if probe else _xurl_x.has_stored_auth()
-
     # Determine active source. bird (browser cookies) and xAI win when present;
     # when neither is available, xquik is the active X source. A probe that
     # clearly failed (False) means xquik is not actually usable.
@@ -1223,9 +1198,7 @@ def get_x_source_status(config: dict[str, Any], probe: bool = False) -> dict[str
     elif xai_available:
         source = 'xai'
     else:
-        if xurl_available:
-            source = 'xurl'
-        elif xquik_available and xquik_working is not False:
+        if xquik_available and xquik_working is not False:
             source = 'xquik'
         else:
             source = None
@@ -1236,7 +1209,6 @@ def get_x_source_status(config: dict[str, Any], probe: bool = False) -> dict[str
         "bird_authenticated": bird_status["authenticated"],
         "bird_username": bird_status["username"],
         "xai_available": xai_available,
-        "xurl_available": xurl_available,
         "xquik_available": xquik_available,
         "xquik_working": xquik_working,
         "xquik_status": xquik_status,

@@ -21,10 +21,8 @@ def _reset_probe_caches():
     """The doctor stack memoizes probe results in module-level dicts (safe for
     the one-shot CLI process, wrong across tests). Clear them around every test
     so a probe cached by one test can never leak into another."""
-    from lib import health, xurl_x
+    from lib import health
 
     health.clear_dependency_probe_cache()
-    xurl_x.clear_availability_cache()
     yield
     health.clear_dependency_probe_cache()
-    xurl_x.clear_availability_cache()

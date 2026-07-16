@@ -64,7 +64,6 @@ from . import (
     xai_x,
     xiaohongshu_api,
     xquik,
-    xurl_x,
     youtube_yt,
 )
 from .cluster import cluster_candidates
@@ -178,8 +177,8 @@ def available_sources(
 
     ``local_only=True`` is the safe/diagnose flavor (doctor's permission
     block): availability is answered from local evidence only, so the X
-    check never spawns xurl's live ``whoami`` network call. Research-time
-    callers keep the default live semantics.
+    check performs only configured-backend probes. Research-time callers keep
+    the default live semantics.
     """
     available: list[str] = []
     # reddit_public needs no API key - always available
@@ -2471,7 +2470,7 @@ def _run_supplemental_searches(
     from_date, to_date = date_range
 
     # Convert SourceItems to dicts for entity_extract. All X items (whatever
-    # backend fetched them — bird, xai, xurl, xquik) land under the single "x"
+    # backend fetched them — bird, xai, or xquik) land under the single "x"
     # slug, so this reads the whole X corpus.
     x_dicts = [
         {"author_handle": item.author or "", "text": item.body or ""}
@@ -2521,7 +2520,7 @@ def _run_supplemental_searches(
     # Pick the X handle-search backend: the first handle-capable backend in the
     # chain (bird or xquik). These supplemental from:/mentions lanes are
     # complementary to the topic search, so when the topic primary can't run
-    # them (xai/xurl have no handle-lane implementation) but a capable backend
+    # them (xai has no handle-lane implementation) but a capable backend
     # is available, use it rather than skipping Phase 2. bird scrapes X GraphQL
     # with the user's browser cookies; xquik runs the same lanes over its REST
     # API. All items land under the single "x" slug.
@@ -2548,7 +2547,7 @@ def _run_supplemental_searches(
         def _about_lane(hs: list, count: int) -> list:
             return xquik.search_mentions(hs, from_date, to_date, topic=topic, count_per=count, token=xquik_token)
     else:
-        return  # primary X backend has no handle-lane support (xai/xurl) or none configured
+        return  # primary X backend has no handle-lane support (xai) or none configured
 
     # Skip if the X source is rate-limited.
     if x_slug in rate_limited_sources:
@@ -2801,9 +2800,6 @@ def _fetch_x_backend(backend, subquery, from_date, to_date, depth, config):
         model = config.get("LAST30DAYS_X_MODEL") or config.get("XAI_MODEL_PIN") or providers.XAI_DEFAULT
         result = xai_x.search_x(config["XAI_API_KEY"], model, query, from_date, to_date, depth=depth)
         items = xai_x.parse_x_response(result)
-    elif backend == "xurl":
-        result = xurl_x.search_x(query, depth=depth)
-        items = xurl_x.parse_x_response(result, topic=query)
     elif backend == "xquik":
         result = xquik.search_xquik(query, from_date, to_date, depth=depth, token=env.get_xquik_token(config))
         items = xquik.parse_xquik_response(result)

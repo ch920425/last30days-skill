@@ -251,55 +251,6 @@ def _probe_bird(config: Dict[str, Any]) -> BackendFinding:
     )
 
 
-def _probe_xurl(config: Dict[str, Any]) -> BackendFinding:
-    """xurl = official X API v2 CLI (OAuth2). Free lane; LOCAL-ONLY probe.
-
-    Doctor's no-network guarantee forbids the live ``xurl whoami`` check
-    (``xurl_x.is_available()`` — an authenticated X API call, reserved for
-    research time). This probe keys on local evidence instead: the binary
-    on PATH plus xurl's on-disk token store (~/.xurl). Stored credentials
-    read as OK with an explicit "not live-verified" caveat; an unreadable
-    token store is a typed ERROR (broken, not unconfigured).
-    """
-    from . import xurl_x
-
-    requires = "xurl CLI installed + OAuth2 login"
-    if which("xurl") is None:
-        return BackendFinding(
-            name="xurl",
-            status=health.MISSING,
-            detail="xurl CLI not found on PATH",
-            prescription="npm install -g xurl && xurl auth oauth2 login",
-            requires=requires,
-        )
-    store_status, store_detail = xurl_x.stored_auth_status()
-    if store_status == xurl_x.AUTH_OK:
-        return BackendFinding(
-            name="xurl",
-            status=health.OK,
-            detail=(
-                "installed; stored OAuth2 credentials present; "
-                "auth not live-verified (no network)"
-            ),
-            requires=requires,
-        )
-    if store_status == xurl_x.AUTH_ERROR:
-        return BackendFinding(
-            name="xurl",
-            status=health.ERROR,
-            detail=store_detail,
-            prescription="xurl auth oauth2 login",
-            requires=requires,
-        )
-    return BackendFinding(
-        name="xurl",
-        status=health.MISSING,
-        detail="xurl installed but not authenticated",
-        prescription="xurl auth oauth2 login",
-        requires=requires,
-    )
-
-
 def _probe_ytdlp(config: Dict[str, Any]) -> BackendFinding:
     """yt-dlp via the U1 dependency-probe layer (missing/broken/timeout)."""
     dep = health.probe_dependency("yt-dlp")
@@ -348,7 +299,6 @@ def _probe_reddit_public(config: Dict[str, Any]) -> BackendFinding:
 _X_PROBES: Dict[str, Callable[[Dict[str, Any]], BackendFinding]] = {
     "xai": _key_probe("xai", "XAI_API_KEY", "XAI_API_KEY (xAI/Grok live search)"),
     "bird": _probe_bird,
-    "xurl": _probe_xurl,
     "xquik": _key_probe("xquik", "XQUIK_API_KEY", "XQUIK_API_KEY (xquik.com)"),
 }
 _X_PAID = {"xai", "xquik"}
@@ -383,7 +333,6 @@ DESCRIPTORS: Dict[str, ChainDescriptor] = {
                 requires={
                     "xai": "XAI_API_KEY (xAI/Grok live search)",
                     "bird": "X browser cookies (AUTH_TOKEN/CT0) + node",
-                    "xurl": "xurl CLI installed + OAuth2 login",
                     "xquik": "XQUIK_API_KEY (xquik.com)",
                 }[name],
                 probe=_X_PROBES[name],
