@@ -230,8 +230,6 @@ def mock_runtime(config: dict[str, Any], depth: str) -> schema.ProviderRuntime:
         reasoning_provider=provider_name,
         planner_model=planner_model,
         rerank_model=rerank_model,
-
-        x_search_backend=_resolve_x_backend(config),
     )
 
 
@@ -256,7 +254,6 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
                 reasoning_provider="local",
                 planner_model="deterministic",
                 rerank_model="local-score",
-                x_search_backend=_resolve_x_backend(config),
             ), None
 
     planner_model, rerank_model = _resolve_model_pins(config, depth, provider_name)
@@ -268,8 +265,6 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
             reasoning_provider="gemini",
             planner_model=planner_model,
             rerank_model=rerank_model,
-    
-            x_search_backend=_resolve_x_backend(config),
         )
         return runtime, GeminiClient(google_key)
 
@@ -280,8 +275,6 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
             reasoning_provider="openai",
             planner_model=planner_model,
             rerank_model=rerank_model,
-    
-            x_search_backend=_resolve_x_backend(config),
         )
         return runtime, OpenAIClient(
             openai_token
@@ -294,8 +287,6 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
             reasoning_provider="xai",
             planner_model=planner_model,
             rerank_model=rerank_model,
-    
-            x_search_backend=_resolve_x_backend(config),
         )
         return runtime, XAIClient(xai_key)
 
@@ -307,18 +298,10 @@ def resolve_runtime(config: dict[str, Any], depth: str) -> tuple[schema.Provider
             reasoning_provider="openrouter",
             planner_model=planner_model,
             rerank_model=rerank_model,
-            x_search_backend=_resolve_x_backend(config),
         )
         return runtime, OpenRouterClient(openrouter_key)
 
     raise RuntimeError(f"Unsupported reasoning provider: {provider_name}")
-
-
-def _resolve_x_backend(config: dict[str, Any]) -> str | None:
-    preferred = (config.get(env.X_BACKEND_PIN_VAR) or "").lower()
-    if preferred in {"xai", "bird"}:
-        return preferred
-    return env.get_x_source(config)
 
 
 def _require_gemini_31(model: str, *, role: str) -> None:

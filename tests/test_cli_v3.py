@@ -258,14 +258,14 @@ class CliV3Tests(unittest.TestCase):
     def test_ensure_supported_python_allows_supported_interpreter(self):
         cli.ensure_supported_python((3, 12, 0))
 
-    def test_missing_sources_for_promo_prefers_reddit_x_then_web(self):
+    def test_missing_sources_for_promo_prefers_reddit_then_web(self):
         self.assertEqual(
-            "both",
+            "reddit",
             cli._missing_sources_for_promo({"available_sources": ["youtube"]}),
         )
         self.assertEqual(
             "web",
-            cli._missing_sources_for_promo({"available_sources": ["reddit", "x"]}),
+            cli._missing_sources_for_promo({"available_sources": ["reddit"]}),
         )
         # The web promo is satisfied by a paid backend (better web search), not
         # by the keyless grounding floor — keyless web is always available now.
@@ -448,7 +448,7 @@ class CliV3Tests(unittest.TestCase):
             source_counts={"grounding": 0},
             display_sources=["grounding"],
         )
-        fake_progress.show_promo.assert_called_once_with("both", diag=diag)
+        fake_progress.show_promo.assert_called_once_with("reddit", diag=diag)
         self.assertIn("# rendered", stdout.getvalue())
 
     def test_main_writes_rendered_output_to_explicit_file(self):

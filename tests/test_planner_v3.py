@@ -90,7 +90,7 @@ class PlannerV3Tests(unittest.TestCase):
         )
         self.assertEqual("comparison", plan.intent)
         self.assertEqual(1, len(plan.subqueries))
-        self.assertEqual(["reddit", "x"], plan.subqueries[0].sources)
+        self.assertEqual(["reddit"], plan.subqueries[0].sources)
 
     def test_quick_mode_prioritizes_explicit_requested_sources_within_cap(self):
         raw = {

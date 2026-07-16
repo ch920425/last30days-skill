@@ -1,6 +1,6 @@
 """Post-research quality score and upgrade nudge.
 
-Computes a quality score based on 5 core sources and builds
+Computes a quality score based on the engine-owned core sources and builds
 a nudge message describing what the user missed and how to fix it.
 
 Fix text comes from ``lib.prescriptions`` (the single remediation
@@ -13,37 +13,16 @@ from typing import List
 from . import prescriptions
 
 
-# The 5 core sources
-CORE_SOURCES = ["hn", "polymarket", "x", "youtube", "reddit"]
+# Core sources owned by this engine.
+CORE_SOURCES = ["hn", "polymarket", "youtube", "reddit"]
 
 # Labels for display
 SOURCE_LABELS = {
     "hn": "Hacker News",
     "polymarket": "Polymarket",
-    "x": "X/Twitter",
     "youtube": "YouTube",
     "reddit": "Reddit",
 }
-
-
-def _is_x_active(config: dict, research_results: dict) -> bool:
-    """Check if X source is active (has credentials AND didn't error)."""
-    has_creds = _has_x_credentials(config)
-    if not has_creds:
-        return False
-    # If X errored this run, it's configured but broken
-    if research_results.get("x_error"):
-        return False
-    return True
-
-
-def _has_x_credentials(config: dict) -> bool:
-    """Return True when any X/Twitter source credential is configured."""
-    return bool(
-        config.get("AUTH_TOKEN")
-        or config.get("XAI_API_KEY")
-        or config.get("XQUIK_API_KEY")
-    )
 
 
 def _has_ytdlp() -> bool:
@@ -149,12 +128,12 @@ def _is_instagram_silent_failure(config: dict, research_results: dict) -> bool:
 
 
 def compute_quality_score(config: dict, research_results: dict) -> dict:
-    """Compute research quality score based on 5 core sources.
+    """Compute research quality score based on engine-owned core sources.
 
     Args:
         config: Configuration dict from env.get_config()
-        research_results: Dict with keys like x_error, youtube_error,
-            reddit_error reflecting what happened this run. Optional keys
+        research_results: Dict with keys like youtube_error and reddit_error
+            reflecting what happened this run. Optional keys
             ``youtube_videos_count`` and ``youtube_transcripts_count`` enable
             degraded-YouTube detection (transcript-fetch ratio below threshold,
             or fallback/provider data returned without local yt-dlp).
@@ -165,7 +144,7 @@ def compute_quality_score(config: dict, research_results: dict) -> dict:
         {
             "score_pct": 40-100,
             "core_active": ["hn", "polymarket", ...],
-            "core_missing": ["x", "youtube"],
+            "core_missing": ["youtube"],
             "core_errored": [],          # configured but errored at top level
             "core_degraded": [],         # configured and returned items but quality below threshold
             "bonus_errored": [],         # bonus sources (Instagram, etc.) configured but silent
@@ -182,15 +161,6 @@ def compute_quality_score(config: dict, research_results: dict) -> dict:
     core_active.append("hn")
     core_active.append("polymarket")
     core_active.append("reddit")
-
-    # X
-    has_x_creds = _has_x_credentials(config)
-    if _is_x_active(config, research_results):
-        core_active.append("x")
-    else:
-        core_missing.append("x")
-        if has_x_creds and research_results.get("x_error"):
-            core_errored.append("x")
 
     # YouTube
     has_ytdlp = _has_ytdlp()
@@ -225,7 +195,7 @@ def compute_quality_score(config: dict, research_results: dict) -> dict:
     if _is_instagram_silent_failure(config, research_results):
         bonus_errored.append("instagram")
 
-    score_pct = int(len(core_active) / 5 * 100)
+    score_pct = int(len(core_active) / len(CORE_SOURCES) * 100)
 
     has_sc = bool(config.get("SCRAPECREATORS_API_KEY"))
     active_sources = research_results.get("active_sources") or []
@@ -294,17 +264,6 @@ def _build_nudge_text(
 
     # Free suggestions
     free_suggestions: List[str] = []
-
-    if "x" in core_missing:
-        if "x" in core_errored:
-            x_fix = prescriptions.get("x", "cookies_expired")
-            free_suggestions.append(f"X/Twitter errored - {x_fix.fix_nl}.")
-        else:
-            x_fix = prescriptions.get("x", "cookies_missing")
-            free_suggestions.append(
-                "X/Twitter: real-time posts with likes and reposts - the fastest "
-                f"signal for breaking topics. Three options: {x_fix.fix_nl}."
-            )
 
     if "youtube" in core_missing:
         if "youtube" in core_errored:

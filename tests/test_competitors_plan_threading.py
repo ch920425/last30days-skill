@@ -21,10 +21,9 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
         self.assertEqual(cli.parse_competitors_plan(""), {})
 
     def test_inline_json_parsed(self):
-        raw = '{"Drake": {"x_handle": "Drake", "subreddits": ["Drizzy"]}}'
+        raw = '{"Drake": {"subreddits": ["Drizzy"]}}'
         out = cli.parse_competitors_plan(raw)
         self.assertIn("drake", out)
-        self.assertEqual(out["drake"]["x_handle"], "Drake")
         self.assertEqual(out["drake"]["subreddits"], ["Drizzy"])
 
     def test_file_path_accepted(self):
@@ -32,13 +31,12 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
             mode="w", suffix=".json", delete=False,
         ) as f:
             json.dump(
-                {"Anthropic": {"x_handle": "AnthropicAI", "github_user": "anthropics"}},
+                {"Anthropic": {"github_user": "anthropics"}},
                 f,
             )
             path = f.name
         try:
             out = cli.parse_competitors_plan(path)
-            self.assertEqual(out["anthropic"]["x_handle"], "AnthropicAI")
             self.assertEqual(out["anthropic"]["github_user"], "anthropics")
         finally:
             Path(path).unlink(missing_ok=True)
@@ -49,24 +47,24 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
             mode="wb", suffix=".json", delete=False,
         ) as f:
             f.write(
-                b'{"Nestl\xc3\xa9": {"x_handle": "Nestle", "subreddits": ["nestle"]}}'
+                b'{"Nestl\xc3\xa9": {"subreddits": ["nestle"]}}'
             )
             path = f.name
         try:
             out = cli.parse_competitors_plan(path)
             self.assertIn("nestlé", out)
-            self.assertEqual(out["nestlé"]["x_handle"], "Nestle")
+            self.assertEqual(out["nestlé"]["subreddits"], ["nestle"])
         finally:
             Path(path).unlink(missing_ok=True)
 
     def test_case_insensitive_key_normalization(self):
-        raw = '{"DRAKE": {"x_handle": "Drake"}}'
+        raw = '{"DRAKE": {"github_user": "drake"}}'
         out = cli.parse_competitors_plan(raw)
         self.assertIn("drake", out)
         self.assertNotIn("DRAKE", out)
 
     def test_unknown_fields_warned_and_ignored(self):
-        raw = '{"Drake": {"x_handle": "Drake", "bogus_field": 42}}'
+        raw = '{"Drake": {"github_user": "drake", "bogus_field": 42}}'
         err = io.StringIO()
         with redirect_stderr(err):
             out = cli.parse_competitors_plan(raw)
@@ -86,7 +84,7 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
         self.assertEqual(cm.exception.code, 2)
 
     def test_entry_non_dict_skipped_with_warning(self):
-        raw = '{"Drake": "not-a-dict", "Kendrick": {"x_handle": "kendricklamar"}}'
+        raw = '{"Drake": "not-a-dict", "Kendrick": {"github_user": "kendricklamar"}}'
         err = io.StringIO()
         with redirect_stderr(err):
             out = cli.parse_competitors_plan(raw)
@@ -94,11 +92,9 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
         self.assertIn("kendrick", out)
         self.assertIn("must be a dict", err.getvalue())
 
-    def test_all_six_fields_accepted(self):
+    def test_all_supported_fields_accepted(self):
         raw = json.dumps({
             "OpenAI": {
-                "x_handle": "OpenAI",
-                "x_related": ["sama", "gdb"],
                 "subreddits": ["OpenAI", "MachineLearning"],
                 "github_user": "openai",
                 "github_repos": ["openai/gpt-5"],
@@ -107,8 +103,6 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
         })
         out = cli.parse_competitors_plan(raw)
         entry = out["openai"]
-        self.assertEqual(entry["x_handle"], "OpenAI")
-        self.assertEqual(entry["x_related"], ["sama", "gdb"])
         self.assertEqual(entry["subreddits"], ["OpenAI", "MachineLearning"])
         self.assertEqual(entry["github_user"], "openai")
         self.assertEqual(entry["github_repos"], ["openai/gpt-5"])
@@ -117,30 +111,25 @@ class ParseCompetitorsPlanTests(unittest.TestCase):
 
 class SubrunKwargsForTests(unittest.TestCase):
     def test_plan_wins_over_auto_resolve(self):
-        plan_entry = {"x_handle": "Drake", "subreddits": ["Drizzy"]}
-        resolved = {"x_handle": "wrong", "subreddits": ["wrong"]}
+        plan_entry = {"subreddits": ["Drizzy"]}
+        resolved = {"subreddits": ["wrong"]}
         kwargs = cli.subrun_kwargs_for("Drake", plan_entry, resolved=resolved)
-        self.assertEqual(kwargs["x_handle"], "Drake")
         self.assertEqual(kwargs["subreddits"], ["Drizzy"])
 
     def test_auto_resolve_used_when_plan_missing(self):
         resolved = {
-            "x_handle": "Drake",
             "subreddits": ["Drizzy", "hiphopheads"],
             "github_user": "",
             "github_repos": [],
         }
         kwargs = cli.subrun_kwargs_for("Drake", {}, resolved=resolved)
-        self.assertEqual(kwargs["x_handle"], "Drake")
         self.assertEqual(kwargs["subreddits"], ["Drizzy", "hiphopheads"])
 
     def test_both_empty_yields_all_none(self):
         kwargs = cli.subrun_kwargs_for("Drake", {}, resolved={})
-        self.assertIsNone(kwargs["x_handle"])
         self.assertIsNone(kwargs["subreddits"])
         self.assertIsNone(kwargs["github_user"])
         self.assertIsNone(kwargs["github_repos"])
-        self.assertIsNone(kwargs["x_related"])
         self.assertEqual(kwargs["_context"], "")
 
     def test_trustpilot_domain_plan_wins_and_is_not_hint(self):
@@ -164,12 +153,6 @@ class SubrunKwargsForTests(unittest.TestCase):
         self.assertIsNone(kwargs["trustpilot_domain"])
         self.assertFalse(kwargs["_trustpilot_domain_is_hint"])
 
-    def test_x_handle_strips_at_sign(self):
-        kwargs = cli.subrun_kwargs_for(
-            "Drake", {"x_handle": "@Drake"}, resolved={},
-        )
-        self.assertEqual(kwargs["x_handle"], "Drake")
-
     def test_subreddits_strip_r_prefix(self):
         kwargs = cli.subrun_kwargs_for(
             "Drake", {"subreddits": ["r/Drizzy", "hiphopheads"]}, resolved={},
@@ -183,14 +166,6 @@ class SubrunKwargsForTests(unittest.TestCase):
             resolved={},
         )
         self.assertEqual(kwargs["github_repos"], ["drake/ovo"])
-
-    def test_x_related_list_normalized(self):
-        kwargs = cli.subrun_kwargs_for(
-            "Drake",
-            {"x_related": ["@pnd", "drakefan"]},
-            resolved={},
-        )
-        self.assertEqual(kwargs["x_related"], ["pnd", "drakefan"])
 
     def test_github_user_lowercased(self):
         kwargs = cli.subrun_kwargs_for(

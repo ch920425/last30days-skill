@@ -158,7 +158,7 @@ def test_new_user_without_ytdlp_unchanged_welcome(tmp_path: Path):
     # No detection line, no yt-dlp-aware copy, original wizard line preserved.
     assert "Detected: yt-dlp" not in result.stdout
     assert "yt-dlp detected" not in result.stdout
-    assert "wizard can unlock X/Twitter, YouTube, and more" in result.stdout, (
+    assert "wizard can unlock YouTube and more" in result.stdout, (
         f"expected unchanged wizard line, got: {result.stdout!r}"
     )
 

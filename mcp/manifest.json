@@ -59,7 +59,7 @@
     "xai_api_key": {
       "type": "string",
       "title": "XAI_API_KEY",
-      "description": "xAI API key. Powers X / Twitter research via xAI's x_search tool. Get one at https://console.x.ai/.",
+      "description": "xAI API key for optional reasoning and reranking. It is not used for X/Twitter acquisition.",
       "sensitive": true,
       "required": false
     },

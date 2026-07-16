@@ -210,7 +210,7 @@ class TestChromeNotInstalled:
             "lib.chrome_cookies._find_chromium_cookies_db",
             return_value=None,
         ):
-            result = extract_chrome_cookies_macos(".x.com", ["auth_token"])
+            result = extract_chrome_cookies_macos(".reddit.com", ["reddit_session"])
             assert result is None
 
 # ---------------------------------------------------------------------------
@@ -256,7 +256,7 @@ class TestUnencryptedCookies:
         """Copied Chromium cookie DB temp files are chmodded owner-only before read."""
         db_path = tmp_path / "Cookies"
         _create_chrome_cookies_db(str(db_path), [
-            (".x.com", "auth_token", "plain_token_value", b""),
+            (".reddit.com", "reddit_session", "plain_token_value", b""),
         ])
         os.chmod(db_path, 0o644)
 
@@ -271,18 +271,18 @@ class TestUnencryptedCookies:
             result = _extract_chromium_cookies_macos(
                 db_path,
                 "Chrome Safe Storage",
-                ".x.com",
-                ["auth_token"],
+                ".reddit.com",
+                ["reddit_session"],
             )
 
-        assert result == {"auth_token": "plain_token_value"}
+        assert result == {"reddit_session": "plain_token_value"}
 
     @pytest.mark.skipif(os.name == "nt", reason="POSIX permission model does not apply on Windows")
     def test_temp_cookie_copy_never_world_readable(self, tmp_path):
         """The temp copy must stay private immediately after copying content."""
         db_path = tmp_path / "Cookies"
         _create_chrome_cookies_db(str(db_path), [
-            (".x.com", "auth_token", "plain_token_value", b""),
+            (".reddit.com", "reddit_session", "plain_token_value", b""),
         ])
         os.chmod(db_path, 0o644)
 
@@ -297,27 +297,27 @@ class TestUnencryptedCookies:
             result = _extract_chromium_cookies_macos(
                 db_path,
                 "Chrome Safe Storage",
-                ".x.com",
-                ["auth_token"],
+                ".reddit.com",
+                ["reddit_session"],
             )
 
-        assert result == {"auth_token": "plain_token_value"}
+        assert result == {"reddit_session": "plain_token_value"}
         assert observed["mode_after_copy"] == 0o600
 
     def test_plain_value_returned(self, tmp_path):
         """Unencrypted cookies (value column populated) returned without decryption."""
         db_path = str(tmp_path / "Cookies")
         _create_chrome_cookies_db(db_path, [
-            (".x.com", "auth_token", "plain_token_value", b""),
-            (".x.com", "ct0", "plain_ct0_value", b""),
+            (".reddit.com", "reddit_session", "plain_token_value", b""),
+            (".reddit.com", "csrf_token", "plain_csrf_token_value", b""),
         ])
 
         with mock.patch("lib.chrome_cookies._find_chromium_cookies_db", return_value=Path(db_path)):
             # No keychain needed for unencrypted values
             with mock.patch("lib.chrome_cookies._get_chromium_encryption_key", return_value=None):
-                result = extract_chrome_cookies_macos(".x.com", ["auth_token", "ct0"])
+                result = extract_chrome_cookies_macos(".reddit.com", ["reddit_session", "csrf_token"])
 
-        assert result == {"auth_token": "plain_token_value", "ct0": "plain_ct0_value"}
+        assert result == {"reddit_session": "plain_token_value", "csrf_token": "plain_csrf_token_value"}
 
 # ---------------------------------------------------------------------------
 # Full integration: mock DB with real v10 encryption, mock Keychain
@@ -328,16 +328,16 @@ class TestFullExtraction:
     @pytest.mark.skipif(not OPENSSL_AVAILABLE, reason="openssl not installed")
     def test_encrypted_cookies_extracted(self, tmp_path):
         """End-to-end: create DB with real v10-encrypted values, extract them."""
-        auth_val = "my_auth_token_123"
-        ct0_val = "my_ct0_csrf_456"
+        auth_val = "my_reddit_session_123"
+        csrf_token_val = "my_csrf_token_csrf_456"
 
         encrypted_auth = _encrypt_value_v10(auth_val, KNOWN_AES_KEY)
-        encrypted_ct0 = _encrypt_value_v10(ct0_val, KNOWN_AES_KEY)
+        encrypted_csrf_token = _encrypt_value_v10(csrf_token_val, KNOWN_AES_KEY)
 
         db_path = str(tmp_path / "Cookies")
         _create_chrome_cookies_db(db_path, [
-            (".x.com", "auth_token", "", encrypted_auth),
-            (".x.com", "ct0", "", encrypted_ct0),
+            (".reddit.com", "reddit_session", "", encrypted_auth),
+            (".reddit.com", "csrf_token", "", encrypted_csrf_token),
             (".other.com", "other", "", b""),  # unrelated cookie
         ])
 
@@ -346,11 +346,11 @@ class TestFullExtraction:
                 "lib.chrome_cookies._get_chromium_encryption_key",
                 return_value=KNOWN_PASSPHRASE,
             ):
-                result = extract_chrome_cookies_macos(".x.com", ["auth_token", "ct0"])
+                result = extract_chrome_cookies_macos(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is not None
-        assert result["auth_token"] == auth_val
-        assert result["ct0"] == ct0_val
+        assert result["reddit_session"] == auth_val
+        assert result["csrf_token"] == csrf_token_val
 
     def test_no_matching_cookies_returns_none(self, tmp_path):
         db_path = str(tmp_path / "Cookies")
@@ -360,7 +360,7 @@ class TestFullExtraction:
 
         with mock.patch("lib.chrome_cookies._find_chromium_cookies_db", return_value=Path(db_path)):
             with mock.patch("lib.chrome_cookies._get_chromium_encryption_key", return_value=None):
-                result = extract_chrome_cookies_macos(".x.com", ["auth_token"])
+                result = extract_chrome_cookies_macos(".reddit.com", ["reddit_session"])
 
         assert result is None
 
@@ -372,7 +372,7 @@ class TestFullExtraction:
 
         db_path = str(tmp_path / "Cookies")
         _create_chrome_cookies_db(db_path, [
-            (".x.com", "auth_token", "", encrypted_auth),
+            (".reddit.com", "reddit_session", "", encrypted_auth),
         ], db_version=24)
 
         with mock.patch("lib.chrome_cookies._find_chromium_cookies_db", return_value=Path(db_path)):
@@ -380,10 +380,10 @@ class TestFullExtraction:
                 "lib.chrome_cookies._get_chromium_encryption_key",
                 return_value=KNOWN_PASSPHRASE,
             ):
-                result = extract_chrome_cookies_macos(".x.com", ["auth_token"])
+                result = extract_chrome_cookies_macos(".reddit.com", ["reddit_session"])
 
         assert result is not None
-        assert result["auth_token"] == auth_val
+        assert result["reddit_session"] == auth_val
 
 # ---------------------------------------------------------------------------
 # DB version detection

@@ -1,4 +1,4 @@
-"""Auto-resolve subreddits, X handles, and current events context for a topic.
+"""Auto-resolve subreddits, GitHub identities, and current context for a topic.
 
 Uses web search (Brave/Exa/Serper) to discover relevant communities and context
 before the planner runs. This is the engine-side equivalent of SKILL.md Steps
@@ -93,29 +93,6 @@ def _extract_subreddits(items: list[dict]) -> list[str]:
                 seen.add(lower)
                 results.append(match)
     return results
-
-
-def _extract_x_handle(items: list[dict]) -> str:
-    """Extract the most likely X/Twitter handle from search results."""
-    pattern = re.compile(r"@([A-Za-z0-9_]{1,15})")
-    url_pattern = re.compile(r"(?:twitter\.com|x\.com)/([A-Za-z0-9_]{1,15})(?:/|$|\?)")
-    counts: dict[str, int] = {}
-    for item in items:
-        text = f"{item.get('title', '')} {item.get('snippet', '')}"
-        url = item.get("url", "")
-        for match in pattern.findall(text):
-            lower = match.lower()
-            counts[lower] = counts.get(lower, 0) + 1
-        for match in url_pattern.findall(url):
-            lower = match.lower()
-            # URL matches are stronger signals
-            counts[lower] = counts.get(lower, 0) + 3
-    # Filter out generic handles
-    skip = {"twitter", "x", "search", "hashtag", "intent", "share", "i", "home", "explore", "settings"}
-    counts = {k: v for k, v in counts.items() if k not in skip}
-    if not counts:
-        return ""
-    return max(counts, key=counts.get)
 
 
 def _extract_github_user(items: list[dict]) -> str:
@@ -305,20 +282,19 @@ def _build_context_summary(items: list[dict]) -> str:
 
 
 def auto_resolve(topic: str, config: dict) -> dict:
-    """Discover subreddits, X handles, and current events context for a topic.
+    """Discover subreddits, GitHub identities, and current context for a topic.
 
     Args:
         topic: The research topic.
         config: Dict with API keys (BRAVE_API_KEY, EXA_API_KEY, SERPER_API_KEY).
 
     Returns:
-        Dict with keys: subreddits, x_handle, github_user, github_repos,
+        Dict with keys: subreddits, github_user, github_repos,
         context, category, searches_run. Returns empty result if no web
         search backend is available.
     """
     empty = {
         "subreddits": [],
-        "x_handle": "",
         "github_user": "",
         "github_repos": [],
         "trustpilot_domain": "",
@@ -340,7 +316,6 @@ def auto_resolve(topic: str, config: dict) -> dict:
     queries = {
         "subreddit": f"{topic} subreddit reddit",
         "news": f"{topic} news {current_month} {current_year}",
-        "x_handle": f"{topic} X twitter handle",
         "github": f"{topic} github profile site:github.com",
     }
 
@@ -367,24 +342,22 @@ def auto_resolve(topic: str, config: dict) -> dict:
                 results[label] = []
 
     subreddits = _extract_subreddits(results.get("subreddit", []))
-    x_handle = _extract_x_handle(results.get("x_handle", []))
     github_user = _extract_github_user(results.get("github", []))
     github_repos = canonicalize_github_repos(topic, _extract_github_repos(results.get("github", [])))
     context = _build_context_summary(results.get("news", []))
     # Official-site domain doubles as the Trustpilot targeting hint (review
-    # pages are keyed by domain). Scan news first (official sites surface in
-    # coverage), then the handle query's profile-adjacent results.
+    # pages are keyed by domain). Scan current reporting and GitHub-adjacent
+    # results for an official-site hint.
     trustpilot_domain = _extract_official_domain(
-        topic, (results.get("news") or []) + (results.get("x_handle") or [])
+        topic, (results.get("news") or []) + (results.get("github") or [])
     )
 
     subreddits, category = _merge_category_peers(topic, subreddits)
 
-    _log(f"Resolved {len(subreddits)} subreddits, x_handle={x_handle!r}, github_user={github_user!r}, github_repos={github_repos!r}, trustpilot_domain={trustpilot_domain!r}, context_len={len(context)}, category={category!r}")
+    _log(f"Resolved {len(subreddits)} subreddits, github_user={github_user!r}, github_repos={github_repos!r}, trustpilot_domain={trustpilot_domain!r}, context_len={len(context)}, category={category!r}")
 
     return {
         "subreddits": subreddits,
-        "x_handle": x_handle,
         "github_user": github_user,
         "github_repos": github_repos,
         "trustpilot_domain": trustpilot_domain,

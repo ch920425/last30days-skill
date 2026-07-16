@@ -38,7 +38,7 @@ class TestRunOpenclawSetup:
         assert result["node"] is True
         assert result["python3"] is True
         assert all(v is False for v in result["keys"].values())
-        assert result["x_method"] is None
+        assert "x_method" not in result
         assert result["digg_cli"] is False
         assert result["digg_action"] == "no_npx"
 
@@ -91,47 +91,13 @@ class TestRunOpenclawSetup:
 
     @_patch_digg_noop
     @patch("shutil.which")
-    def test_x_method_xai(self, mock_which, _mock_digg):
-        """x_method is 'xai' when XAI_API_KEY is set."""
-        mock_which.return_value = None
-        config = {"XAI_API_KEY": "xai-key"}
-
-        result = setup_wizard.run_openclaw_setup(config)
-
-        assert result["x_method"] == "xai"
-
-    @_patch_digg_noop
-    @patch("shutil.which")
-    def test_x_method_cookies(self, mock_which, _mock_digg):
-        """x_method is 'cookies' when AUTH_TOKEN + CT0 are set."""
-        mock_which.return_value = None
-        config = {"AUTH_TOKEN": "tok", "CT0": "ct0val"}
-
-        result = setup_wizard.run_openclaw_setup(config)
-
-        assert result["x_method"] == "cookies"
-
-    @_patch_digg_noop
-    @patch("shutil.which")
-    def test_x_method_xai_over_cookies(self, mock_which, _mock_digg):
-        """XAI takes priority over cookies for x_method."""
-        mock_which.return_value = None
-        config = {"XAI_API_KEY": "xai-key", "AUTH_TOKEN": "tok", "CT0": "ct0val"}
-
-        result = setup_wizard.run_openclaw_setup(config)
-
-        assert result["x_method"] == "xai"
-
-    @_patch_digg_noop
-    @patch("shutil.which")
-    def test_x_method_null_when_nothing(self, mock_which, _mock_digg):
-        """x_method is None when no X access configured."""
+    def test_payload_has_no_x_acquisition_method(self, mock_which, _mock_digg):
         mock_which.return_value = None
         config = {}
 
         result = setup_wizard.run_openclaw_setup(config)
 
-        assert result["x_method"] is None
+        assert "x_method" not in result
 
     @_patch_digg_noop
     @patch("shutil.which")

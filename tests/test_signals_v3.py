@@ -296,42 +296,6 @@ class SignalsV3Tests(unittest.TestCase):
 
     # -- Iteration 4: Missing engagement formula tests --
 
-    def test_x_engagement_dominant_weight(self):
-        """X: likes at 0.55 should dominate over quotes at 0.05."""
-        item = schema.SourceItem(
-            item_id="x1", source="x", title="T", body="B",
-            url="https://example.com",
-            engagement={"likes": 100, "reposts": 100, "replies": 100, "quotes": 100},
-        )
-        result = signals.engagement_raw(item)
-        self.assertIsNotNone(result)
-        expected = (
-            0.55 * math.log1p(100)
-            + 0.25 * math.log1p(100)
-            + 0.15 * math.log1p(100)
-            + 0.05 * math.log1p(100)
-        )
-        self.assertAlmostEqual(expected, result)
-
-    def test_x_engagement_all_zero_returns_none(self):
-        item = schema.SourceItem(
-            item_id="x2", source="x", title="T", body="B",
-            url="https://example.com",
-            engagement={"likes": 0, "reposts": 0, "replies": 0, "quotes": 0},
-        )
-        self.assertIsNone(signals.engagement_raw(item))
-
-    def test_x_engagement_missing_fields(self):
-        """Missing fields default to 0, no crash."""
-        item = schema.SourceItem(
-            item_id="x3", source="x", title="T", body="B",
-            url="https://example.com",
-            engagement={"likes": 50},
-        )
-        result = signals.engagement_raw(item)
-        self.assertIsNotNone(result)
-        expected = 0.55 * math.log1p(50)
-        self.assertAlmostEqual(expected, result)
 
     def test_youtube_engagement_dominant_weight(self):
         """YouTube: views at 0.45 should dominate. With no top-comment data,

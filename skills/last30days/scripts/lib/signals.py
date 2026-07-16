@@ -17,7 +17,6 @@ SOURCE_QUALITY = {
     "techmeme": 0.85,
     "trustpilot": 0.78,
     "reddit": 0.6,
-    "x": 0.68,
     "bluesky": 0.66,
     "truthsocial": 0.6,
     "polymarket": 0.5,
@@ -113,7 +112,6 @@ _VOTE_LOG_REFERENCE: dict[str, float] = {
     "youtube":    10.3,  # ~log1p(30000)
     "tiktok":     10.3,  # ~log1p(30000)
     "instagram":  9.2,   # ~log1p(10000)
-    "x":          9.2,   # ~log1p(10000)
     "bluesky":    9.2,   # ~log1p(10000); like X/IG, not the Reddit default
 }
 _VOTE_LOG_REFERENCE_DEFAULT = 7.6
@@ -159,7 +157,6 @@ def top_comment_vote_signal(candidate: schema.Candidate) -> float:
 # a dedicated 10% top-comment-score slot (see _reddit_engagement,
 # _youtube_engagement, _tiktok_engagement).
 ENGAGEMENT_WEIGHTS: dict[str, list[tuple[str, float]]] = {
-    "x":            [("likes", 0.55), ("reposts", 0.25), ("replies", 0.15), ("quotes", 0.05)],
     "instagram":    [("views", 0.50), ("likes", 0.30), ("comments", 0.20)],
     "hackernews":   [("points", 0.55), ("comments", 0.45)],
     "bluesky":      [("likes", 0.40), ("reposts", 0.30), ("replies", 0.20), ("quotes", 0.10)],
@@ -291,7 +288,7 @@ def annotate_stream(
     return sorted(items, key=lambda item: item.local_rank_score or 0, reverse=True)
 
 
-_SOCIAL_SOURCES = {"reddit", "x", "tiktok", "instagram", "bluesky", "truthsocial"}
+_SOCIAL_SOURCES = {"reddit", "tiktok", "instagram", "bluesky", "truthsocial"}
 
 # Minimum view count for short-video platforms. Items below this floor
 # are typically spam reposts or low-effort clips that add no unique signal.

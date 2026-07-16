@@ -52,32 +52,6 @@ class TestExtractSubreddits(unittest.TestCase):
         self.assertEqual(resolve._extract_subreddits(items), [])
 
 
-class TestExtractXHandle(unittest.TestCase):
-    def test_extracts_from_url(self):
-        items = [
-            {"title": "OpenAI on X", "snippet": "Updates from @OpenAI", "url": "https://x.com/OpenAI"},
-        ]
-        result = resolve._extract_x_handle(items)
-        self.assertEqual(result, "openai")
-
-    def test_extracts_from_text(self):
-        items = [
-            {"title": "Follow @elonmusk", "snippet": "Also @elonmusk tweeted", "url": ""},
-        ]
-        result = resolve._extract_x_handle(items)
-        self.assertEqual(result, "elonmusk")
-
-    def test_filters_generic_handles(self):
-        items = [
-            {"title": "Go to @twitter", "snippet": "Visit @x", "url": ""},
-        ]
-        result = resolve._extract_x_handle(items)
-        self.assertEqual(result, "")
-
-    def test_empty_items_returns_empty(self):
-        self.assertEqual(resolve._extract_x_handle([]), "")
-
-
 class TestBuildContextSummary(unittest.TestCase):
     def test_builds_from_snippets(self):
         items = [
@@ -127,7 +101,6 @@ class TestAutoResolve(unittest.TestCase):
     def test_no_backend_returns_empty(self):
         result = resolve.auto_resolve("test topic", {})
         self.assertEqual(result["subreddits"], [])
-        self.assertEqual(result["x_handle"], "")
         self.assertEqual(result["context"], "")
         self.assertEqual(result["searches_run"], 0)
 
@@ -142,27 +115,21 @@ class TestAutoResolve(unittest.TestCase):
                 return [
                     {"snippet": "Major tech breakthrough announced this week."},
                 ], {"label": "brave"}
-            if "handle" in query:
-                return [
-                    {"title": "TechCo on X", "snippet": "@TechCo", "url": "https://x.com/TechCo"},
-                ], {"label": "brave"}
             return [], {}
 
         mock_search.side_effect = side_effect
         result = resolve.auto_resolve("tech", {"BRAVE_API_KEY": "fake"})
 
         self.assertEqual(result["subreddits"], ["technology", "gadgets"])
-        self.assertEqual(result["x_handle"], "techco")
         self.assertIn("breakthrough", result["context"])
-        self.assertEqual(result["searches_run"], 4)
-        self.assertEqual(mock_search.call_count, 4)
+        self.assertEqual(result["searches_run"], 3)
+        self.assertEqual(mock_search.call_count, 3)
 
     @patch("lib.resolve.grounding.web_search")
     def test_search_failure_graceful(self, mock_search):
         mock_search.side_effect = RuntimeError("API error")
         result = resolve.auto_resolve("test", {"BRAVE_API_KEY": "fake"})
         self.assertEqual(result["subreddits"], [])
-        self.assertEqual(result["x_handle"], "")
         self.assertEqual(result["context"], "")
         self.assertEqual(result["searches_run"], 0)
 
@@ -184,8 +151,8 @@ class TestAutoResolve(unittest.TestCase):
         self.assertEqual(result["subreddits"], ["cooking"])
         # News search failed, so context is empty
         self.assertEqual(result["context"], "")
-        # 3 out of 4 succeeded (subreddit, x_handle, github; news failed)
-        self.assertEqual(result["searches_run"], 3)
+        # 2 out of 3 succeeded (subreddit and GitHub; news failed)
+        self.assertEqual(result["searches_run"], 2)
 
 
 class MergeCategoryPeersHappyPath(unittest.TestCase):

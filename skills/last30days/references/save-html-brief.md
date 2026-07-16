@@ -48,7 +48,7 @@ SYNTHESIS_EOF
 
 # 2. Convert the synthesis to a self-contained HTML file via the engine.
 #    REPLAY THE SAME SCOPE FLAGS as your original run (--plan, --hiring-signals,
-#    resolved --x-handle/--subreddits/etc). On a same-topic follow-up, the
+#    resolved --subreddits/--github-user/etc). On a same-topic follow-up, the
 #    engine reuses the structured last-report cache at
 #    ~/.config/last30days/last-report.json to build badge metadata and footer
 #    without re-running source fetchers. That cache is intentionally short-lived
@@ -72,7 +72,7 @@ fi
   "${SCOPE_FLAGS[@]}" \
   >| "$HTML_PATH"   # >| not >: noclobber-safe write to the collision-guarded path
 #    where SCOPE_FLAGS is the same array you passed the first time, e.g.
-#    SCOPE_FLAGS=(--hiring-signals --plan "$QUERY_PLAN_FILE" --x-handle=acme).
+#    SCOPE_FLAGS=(--hiring-signals --plan "$QUERY_PLAN_FILE" --subreddits=acme).
 #    For a scoped --hiring-signals brief, --hiring-signals MUST be here too so
 #    the footer reflects the jobs-scoped board, not a generic crawl.
 

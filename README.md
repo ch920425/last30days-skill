@@ -32,15 +32,15 @@ npx skills add mvanhorn/last30days-skill -g
 
 More install options (claude.ai web, OpenClaw, manual) in the [Install](#install) section below.
 
-Zero config. Reddit, HN, Polymarket, and GitHub work immediately. Run it once and the setup wizard unlocks X, YouTube, TikTok, arXiv, Techmeme, and more in 30 seconds.
+Zero config. Reddit, HN, Polymarket, and GitHub work immediately. Run it once and the setup wizard unlocks YouTube, TikTok, arXiv, Techmeme, and more in 30 seconds.
 
 ---
 
-Reddit upvotes. X likes. YouTube transcripts. TikTok engagement. Polymarket odds backed by real money and insider information. That's millions of people voting with their attention and their wallets every day. /last30days searches all of it in parallel, scores it by what real people actually engage with, and an AI agent judge synthesizes it into one brief.
+Reddit upvotes. YouTube transcripts. TikTok engagement. Polymarket odds backed by real money and insider information. That's millions of people voting with their attention and their wallets every day. /last30days searches all of it in parallel, scores it by what real people actually engage with, and an AI agent judge synthesizes it into one brief.
 
 Google aggregates editors. /last30days searches people.
 
-You can't get this search anywhere else because no single AI has access to all of it. Google search doesn't touch Reddit comments or X posts. ChatGPT has a deal with Reddit but can't search X or TikTok. Gemini has YouTube but not Reddit. Claude has none of them natively. Each platform is a walled garden with its own API, its own tokens, its own auth. But you can bring your own keys and browser sessions, and suddenly an AI agent can search all of them at once, score them against each other, and tell you what actually matters.
+You can't get this search anywhere else because no single AI has access to all of it. Google search doesn't touch most Reddit comments or creator transcripts. Gemini has YouTube but not Reddit. Each platform is a walled garden with its own API and access model. Last30Days bridges its supported sources, scores them against each other, and tells you what actually matters.
 
 That's the unlock. Not one better search engine. A dozen disconnected platforms, bridged by an agent.
 
@@ -48,29 +48,28 @@ That's the unlock. Not one better search engine. A dozen disconnected platforms,
 /last30days Peter Steinberger
 ```
 
-You have a meeting tomorrow. You Google them. You get their LinkedIn from 2023. /last30days gives you what they're actually doing this month: joined OpenAI to work on Codex, fighting Anthropic's ban on third-party agents, shipping 23 PRs at 85% merge rate, building "LobsterOS" for cross-device agent control, and r/ClaudeCode hit 569 upvotes debating whether he's a hero or "insufferable." Scattered across X posts, Reddit threads, YouTube transcripts, and GitHub commits. None of it was on Google.
+You have a meeting tomorrow. You Google them. You get their LinkedIn from 2023. /last30days gives you what they're actually doing this month: joined OpenAI to work on Codex, fighting Anthropic's ban on third-party agents, shipping 23 PRs at 85% merge rate, building "LobsterOS" for cross-device agent control, and r/ClaudeCode hit 569 upvotes debating whether he's a hero or "insufferable." Scattered across Reddit threads, YouTube transcripts, and GitHub commits. None of it was on Google.
 
 ## Why this exists
 
-I built it to keep up in AI. Everything changes every day and the Reddit and X nerds are always on top of it first. I needed better prompts, and the training data was always months behind what the community had already figured out.
+I built it to keep up in AI. Everything changes every day and technical communities are often on top of it first. I needed better prompts, and the training data was always months behind what the community had already figured out.
 
-But it turned into something bigger. Now I run it before a sales call to know the last 30 days truth about a business. Before a meeting to read someone's recent tweets and podcast transcripts. Before a Disney World trip to know which rides are closed and what the community says about Genie+. Before I build anything to know what problems people are actually hitting.
+But it turned into something bigger. Now I run it before a sales call to know the last 30 days truth about a business. Before a meeting to read someone's recent interviews, community discussions, and podcast transcripts. Before a Disney World trip to know which rides are closed and what the community says about Genie+. Before I build anything to know what problems people are actually hitting.
 
-If you're meeting with a CEO, have you read all their tweets and YouTube transcripts from the last 30 days? I have.
+If you're meeting with a CEO, have you read their recent interviews, community discussions, and YouTube transcripts? I have.
 
 ## Sources, scored by the people
 
 | Source | What the people tell you |
 |--------|--------------------------|
 | **Reddit** | The unfiltered take. Top comments with real upvote counts, free, no API key. The real opinions that Google buries. |
-| **X / Twitter** | The hot take, the expert thread, the breaking reaction. First to know, first to argue. |
 | **YouTube** | The 45-minute deep dive. Full transcripts searched for the 5 quotable sentences that matter. |
 | **TikTok** | The creator reaching 3.6M people with a take you'll never find on Google. |
 | **Instagram Reels** | The influencer perspective with spoken-word transcripts. The visual culture signal. |
 | **Hacker News** | The developer consensus. 825 points, 899 comments. Where technical people actually argue. |
 | **Polymarket** | Not opinions. Odds. Backed by real money. 96% confidence on album sales. 4% on an acquisition. |
 | **GitHub** | For people: PR velocity, top repos by stars, release notes. For topics: issues and discussions. |
-| **Digg** | Curated story clusters from Digg's AI 1000 leaderboard (~1000 high-signal AI accounts on X), with attributable inline quotes (no X auth required). Auto-enabled when `digg-pp-cli` is on PATH. |
+| **Digg** | Curated story clusters from Digg's AI 1000 leaderboard. Auto-enabled when `digg-pp-cli` is on PATH. |
 | **arXiv** | The papers behind the hype. New research in the window, free, no API key. Auto-enabled when `arxiv-pp-cli` is on PATH (first-run setup installs it). |
 | **Techmeme** | The tech-news editorial layer, date-windowed to your 30 days. Free, no API key. Auto-enabled when `techmeme-pp-cli` is on PATH (first-run setup installs it). |
 | **LinkedIn** | The professional signal. Posts and articles, with articles weighted as high signal. |
@@ -100,7 +99,7 @@ The synthesis ranks by what real people actually engaged with. Social relevancy,
 
 **To compare tools.** `/last30days OpenClaw vs Hermes vs Paperclip` - "These aren't competitors, they're layers." OpenClaw is the executor (351K GitHub stars, live), Hermes is the self-improving brain (31K stars), Paperclip is the org chart (49K stars). Star counts pulled live from the GitHub API, not stale blog posts. Side-by-side table with architecture, memory, security, best-for. Per @IMJustinBrooke: "OpenClaw = Charmander, Hermes = Charizard."
 
-**To understand the world.** `/last30days Iran vs USA` - Day 38 of the war. Trump's Tuesday deadline for Iran to reopen the Strait of Hormuz. Two US warplanes downed. Oil at $126/barrel. The IEA called it "the largest supply disruption in the history of the global oil market." Polymarket: ceasefire by Dec 31 at 74%. 27 X posts, 10 YouTube videos, 20 prediction markets.
+**To understand the world.** `/last30days Iran vs USA` - Day 38 of the war. Trump's Tuesday deadline for Iran to reopen the Strait of Hormuz. Two US warplanes downed. Oil at $126/barrel. The IEA called it "the largest supply disruption in the history of the global oil market." Polymarket: ceasefire by Dec 31 at 74%. 10 YouTube videos and 20 prediction markets.
 
 **Before a trip.** `/last30days Universal Epic Universe` - Expansion already under construction. "Project 680" permit filed. Fireworks show confirmed by infrastructure but unannounced. Wait times: Mine-Cart Madness averaging 148 minutes. No annual pass yet, and locals are frustrated. Stardust Racers down for refurbishment through April 5.
 
@@ -128,11 +127,7 @@ Comments are now a default-on layer across sources: Instagram comments with rank
 
 ### One doctor command
 
-Ask for a health check and the doctor runs every source, then prescribes exact fixes - which key is missing, which CLI is off PATH, which cookie expired (#753). No more guessing why X came back thin.
-
-### X search, rebuilt
-
-The X pipeline got a ground-up overhaul: FROM and ABOUT lanes so a person's own posts and the conversation about them both rank (#610), person-aware subquery disambiguation (#611), first-party authorship grounding with interaction-signal ranking (#613), and a single X source with automatic backend failover (#622). Plus an honest `--diagnose` that actually probes auth (#609).
+Ask for a health check and the doctor runs every supported source, then prescribes exact fixes - which key is missing, which CLI is off PATH, or which optional source is unavailable (#753).
 
 ### More sources joined
 
@@ -261,12 +256,6 @@ Windows support is deferred until per-platform manifest entry points are sorted 
 clawhub install last30days-official
 ```
 
-For X/Twitter action workflows outside `/last30days` research, such as posting
-tweets or replies, follower export, media handling, monitors, and giveaway
-draws, use [TweetClaw](https://github.com/Xquik-dev/tweetclaw) as the companion
-OpenClaw plugin. TweetClaw is maintained by Xquik-dev and is listed only as an
-optional companion path, not a last30days dependency or endorsement.
-
 ### Manual (developer)
 
 ```bash
@@ -280,13 +269,12 @@ Reddit (with comments), Hacker News, Polymarket, and GitHub work immediately. Ze
 
 ## Bring your own keys
 
-These platforms don't have relationships with each other. X doesn't know what Reddit thinks. YouTube doesn't see TikTok. But you can bring your own API keys and browser tokens, and suddenly you have access to all of them at once.
+These platforms do not share context. YouTube doesn't see TikTok. But you can bring your own API keys and browser tokens, and suddenly you have access to all of them at once.
 
 | Sources | What you need | Cost |
 |---------|---------------|------|
 | Reddit (with comments) + HN + Polymarket + GitHub + StockTwits | Nothing | Free |
 | arXiv + Techmeme | Free CLIs, auto-installed by first-run setup | Free |
-| X / Twitter | Log into x.com in any browser, or set `XQUIK_API_KEY` / `XAI_API_KEY` | Browser cookies are free; keys are provider-specific |
 | YouTube | `brew install yt-dlp` | Free |
 | Bluesky | App password from bsky.app | Free |
 | TikTok + Instagram + Threads + Pinterest + LinkedIn + YouTube comments | ScrapeCreators key | 10,000 free calls, then PAYG |
@@ -342,7 +330,7 @@ Published a recurring AI update, market watch, or wonderfully narrow obsession w
 ## How it works
 
 1. **You type a topic.** Person, company, product, technology, "X vs Y." Anything.
-2. **The agent resolves who matters.** Finds X handles (including founders), GitHub repos, subreddits, TikTok hashtags, YouTube channels. For "Kanye West" it knows r/hiphopheads, @kanyewest, and "bully review" on YouTube. For "OpenClaw" it resolves openclaw/openclaw on GitHub and fetches live star counts.
+2. **The agent resolves what matters.** Finds GitHub repos, subreddits, TikTok hashtags, and YouTube channels. For "Kanye West" it knows r/hiphopheads and "bully review" on YouTube. For "OpenClaw" it resolves openclaw/openclaw on GitHub and fetches live star counts.
 3. **All sources searched in parallel.** Multi-query expansion. Results scored by engagement, relevance, freshness.
 4. **The depth nobody else has.** Full YouTube transcripts from reaction videos. Top Reddit comments with upvote counts. TikTok captions. Polymarket odds. Not just titles and links.
 5. **Same story, merged.** Wireless Festival announced on Reddit, discussed on X, ticket prices on TikTok = one cluster, not three separate items.
@@ -351,9 +339,9 @@ Published a recurring AI update, market watch, or wonderfully narrow obsession w
 
 ## What people are saying
 
-> "I found a Claude Code skill that researches any topic across Reddit, X, YouTube, and HN from the last 30 days. Then writes the prompts for you. I've been manually searching Reddit and X for research before every piece of content I write. Tab by tab. Thread by thread. That's the part that takes 90 minutes. This eliminates it." -@itsjasonai
+> "I found a Claude Code skill that researches recent Reddit, YouTube, HN, and web activity, then writes the prompts for you. That's the part that used to take 90 minutes." -@itsjasonai
 
-> "This one skill replaced my entire research workflow. You give it a topic, it scrapes Reddit, X, and the web for what people are actually talking about. Not old blog posts. Real conversations from the last 30 days." -@itswilsoncharles
+> "This one skill replaced my manual recent-research workflow. You give it a topic and it finds real conversations instead of relying on old blog posts." -@itswilsoncharles
 
 > "5 of the 10 trending repos on GitHub today are Claude tools. #1: mvanhorn/last30days-skill" -@yieldhunter95
 
@@ -361,7 +349,7 @@ Published a recurring AI update, market watch, or wonderfully narrow obsession w
 
 MIT license. No tracking. No analytics. Your research stays on your machine. 2,700+ tests.
 
-Built with Python 3.12+, yt-dlp, Node.js (vendored Bird client for X search), and ScrapeCreators API. v3 engine architecture by [@j-sperling](https://github.com/j-sperling).
+Built with Python 3.12+, yt-dlp, Node.js, and the ScrapeCreators API. v3 engine architecture by [@j-sperling](https://github.com/j-sperling).
 
 See [CONTRIBUTORS.md](CONTRIBUTORS.md) for the full list of community contributors and [CHANGELOG.md](CHANGELOG.md) for version history.
 

@@ -57,9 +57,9 @@ KEYCHAIN_ALIASES_ENV = "LAST30DAYS_KEYCHAIN_ALIASES"
 KEYCHAIN_KEYS = (
     "OPENAI_API_KEY", "XAI_API_KEY", "GOOGLE_API_KEY", "GEMINI_API_KEY",
     "GOOGLE_GENAI_API_KEY", "SCRAPECREATORS_API_KEY", "APIFY_API_TOKEN",
-    "AUTH_TOKEN", "CT0", "BSKY_HANDLE", "BSKY_APP_PASSWORD",
+    "BSKY_HANDLE", "BSKY_APP_PASSWORD",
     "TRUTHSOCIAL_TOKEN", "BRAVE_API_KEY", "EXA_API_KEY", "SERPER_API_KEY",
-    "OPENROUTER_API_KEY", "PERPLEXITY_API_KEY", "PARALLEL_API_KEY", "XQUIK_API_KEY",
+    "OPENROUTER_API_KEY", "PERPLEXITY_API_KEY", "PARALLEL_API_KEY",
     "XIAOHONGSHU_API_BASE", "GITHUB_TOKEN",
 )
 
@@ -468,8 +468,6 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         ('LAST30DAYS_REASONING_PROVIDER', 'auto'),
         ('LAST30DAYS_PLANNER_MODEL', None),
         ('LAST30DAYS_RERANK_MODEL', None),
-        ('LAST30DAYS_X_MODEL', None),
-        ('LAST30DAYS_X_BACKEND', None),
         ('LAST30DAYS_REDDIT_BACKEND', None),
         # Doctor cache freshness window in seconds (doctor --cached).
         ('LAST30DAYS_DOCTOR_TTL', None),
@@ -497,8 +495,6 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         ('OPENROUTER_BASE_URL', None),
         ('SCRAPECREATORS_API_KEY', None),
         ('APIFY_API_TOKEN', None),
-        ('AUTH_TOKEN', None),
-        ('CT0', None),
         ('BSKY_HANDLE', None),
         ('BSKY_APP_PASSWORD', None),
         ('BSKY_SEARCH_HOST', None),
@@ -520,7 +516,6 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         ('LAST30DAYS_PERPLEXITY_REASONING_EFFORT', None),
         ('LAST30DAYS_PERPLEXITY_DEEP_TIMEOUT_SECONDS', '600'),
         ('PARALLEL_API_KEY', None),
-        ('XQUIK_API_KEY', None),
         # Host-native search signal: set by the SKILL.md agent-host path when the
         # invoking runtime has its own (better) web-search tool, so the engine's
         # keyless search floor stays off there. Defaults unset -> floor allowed.
@@ -619,11 +614,6 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 COOKIE_DOMAINS: dict[str, dict[str, Any]] = {
-    "x": {
-        "domain": ".x.com",
-        "cookies": ["auth_token", "ct0"],
-        "mapping": {"auth_token": "AUTH_TOKEN", "ct0": "CT0"},
-    },
     "truthsocial": {
         "domain": ".truthsocial.com",
         "cookies": ["_session_id"],
@@ -721,16 +711,6 @@ def extract_browser_credentials(config: dict[str, Any]) -> dict[str, str]:
     return extracted
 
 
-def get_x_source_with_method(config: dict[str, Any]) -> tuple[str | None, str]:
-    """Return (source, method) for X search, where method describes the auth origin."""
-    if config.get("XAI_API_KEY"):
-        return "xai", "xai"
-    if config.get("AUTH_TOKEN") and config.get("CT0"):
-        method = config.get("_AUTH_TOKEN_SOURCE", "env")
-        return "bird", method
-    return None, "none"
-
-
 def config_exists(policy: ConfigLoadPolicy | None = None) -> bool:
     """Check if any configuration source exists."""
     policy = policy or ConfigLoadPolicy()
@@ -752,115 +732,8 @@ def get_reddit_source(config: dict[str, Any]) -> str | None:
     return None
 
 
-# Default X backend priority. The first available backend is the primary X
-# source; the rest are ordered failover backups, tried only if the one before
-# returns nothing or errors. There is one X source ("x"); these are its
-# interchangeable backends, never run in parallel.
-#   xai   — xAI/Grok live search (XAI_API_KEY)
-#   bird  — X GraphQL scrape via the user's browser cookies (AUTH_TOKEN/CT0)
-#   xquik — key-based REST X search (XQUIK_API_KEY); keyless of browser cookies
-_X_BACKEND_ORDER = ("xai", "bird", "xquik")
-
-# Public routing definitions for the doctor/backend-descriptor layer
-# (lib/backends.py). These are aliases for knowledge this module already
-# owns — the declared X chain order and the pin/floor env var names — so
-# descriptors import one source of truth instead of restating it.
-X_BACKEND_ORDER = _X_BACKEND_ORDER
-X_BACKEND_PIN_VAR = 'LAST30DAYS_X_BACKEND'
 REDDIT_BACKEND_PIN_VAR = 'LAST30DAYS_REDDIT_BACKEND'
 REDDIT_SC_MIN_ITEMS_VAR = 'LAST30DAYS_REDDIT_SC_MIN_ITEMS'
-
-
-def _x_backend_available(
-    backend: str,
-    config: dict[str, Any],
-    has_bird_creds: bool,
-    local_only: bool = False,
-) -> bool:
-    if backend == 'xai':
-        return bool(config.get('XAI_API_KEY'))
-    if backend == 'bird':
-        from . import bird_x
-        return has_bird_creds and bird_x.is_bird_installed()
-    if backend == 'xquik':
-        return is_xquik_available(config)
-    return False
-
-
-def x_backend_chain(config: dict[str, Any], local_only: bool = False) -> list[str]:
-    """Ordered list of available X backends.
-
-    ``chain[0]`` is the default X source; the remaining entries are failover
-    backups, used only when the one before yields no items or errors. There is
-    exactly one X source — these are its backends, never fetched in parallel.
-
-    A ``LAST30DAYS_X_BACKEND`` pin forces a single backend (no failover): the
-    user explicitly chose it. Browser-cookie probing is intentionally avoided
-    (automatic Keychain access causes popups); bird counts as available only
-    when AUTH_TOKEN and CT0 are present explicitly.
-
-    ``local_only=True`` is the doctor/safe-diagnose flavor. It avoids network
-    probes while preserving configured backend selection.
-    """
-    from . import bird_x
-    has_bird_creds = bool(config.get('AUTH_TOKEN') and config.get('CT0'))
-    if has_bird_creds:
-        bird_x.set_credentials(config.get('AUTH_TOKEN'), config.get('CT0'))
-
-    preferred = (config.get(X_BACKEND_PIN_VAR) or '').lower()
-    if preferred in _X_BACKEND_ORDER:
-        if _x_backend_available(preferred, config, has_bird_creds, local_only):
-            return [preferred]
-        return []
-
-    return [
-        b for b in _X_BACKEND_ORDER
-        if _x_backend_available(b, config, has_bird_creds, local_only)
-    ]
-
-
-def get_x_source(config: dict[str, Any], local_only: bool = False) -> str | None:
-    """The default (primary) X backend, or None if no X source is available.
-
-    Thin wrapper over ``x_backend_chain`` returning the first/primary backend;
-    callers that want failover should use ``x_backend_chain`` directly.
-    ``local_only`` is forwarded (see ``x_backend_chain``).
-    """
-    chain = x_backend_chain(config, local_only=local_only)
-    return chain[0] if chain else None
-
-
-def x_pending_browser_auth(config: dict[str, Any], local_only: bool = False) -> bool:
-    """True when X is not available now but ``FROM_BROWSER`` will authenticate it at run time.
-
-    ``--diagnose`` / ``--preflight`` load config in ``plan_only`` mode, which
-    deliberately skips browser-cookie extraction (no Keychain popup,
-    ``reads_values: false``). As a result ``get_x_source`` returns None and X is
-    dropped from ``available_sources`` even though a normal run would extract the
-    same cookies and authenticate X fine. This predicate reports that
-    "available pending browser auth" state without reading a single cookie — it
-    keys only on the already-resolved browser list (``cookie_extraction_browsers``
-    derives it from ``FROM_BROWSER`` alone, no secrets), bird being installed, and
-    X having a cookie-domain mapping. Side-effect free, so the safe-inspection
-    contract of diagnose/preflight is preserved.
-
-    Returns False whenever X is already available outright (static AUTH_TOKEN/CT0,
-    or xAI/xquik backend), and in ``read`` mode (a real run has already
-    extracted creds, so its status must be unchanged — never "pending").
-    """
-    # Already available via a static backend (bird creds, xAI, xquik).
-    if get_x_source(config, local_only=local_only):
-        return False
-    # Only meaningful in inspection modes that skip extraction; a real ``read``
-    # run has already attempted extraction and must report its true state.
-    if config.get('_BROWSER_COOKIE_MODE') == 'read':
-        return False
-    if 'x' not in COOKIE_DOMAINS:
-        return False
-    if not cookie_extraction_browsers(config):
-        return False
-    from . import bird_x
-    return bird_x.is_bird_installed()
 
 
 def is_ytdlp_available() -> bool:
@@ -1141,81 +1014,6 @@ def is_xiaohongshu_available(config: dict[str, Any]) -> bool:
 is_apify_available = is_tiktok_available
 
 
-def get_x_source_status(config: dict[str, Any], probe: bool = False) -> dict[str, Any]:
-    """Get detailed X source status for UI decisions.
-
-    Args:
-        probe: when True, run a cheap 1-tweet bird probe and downgrade
-            ``bird_authenticated`` to False when X clearly returns nothing,
-            so ``--diagnose`` reflects runtime reality instead of static
-            credential presence. A transient timeout leaves the status
-            unchanged (fail open). When False, the safe/diagnose path does
-            not perform a network probe.
-
-    Returns:
-        Dict with keys: source, bird_installed, bird_authenticated,
-        bird_username, xai_available, can_install_bird
-    """
-    from . import bird_x
-
-    if config.get('AUTH_TOKEN') and config.get('CT0'):
-        bird_x.set_credentials(config.get('AUTH_TOKEN'), config.get('CT0'))
-    bird_status = bird_x.get_bird_status()
-    xai_available = bool(config.get('XAI_API_KEY'))
-
-    # Report the TRUE auth lane (browser / env / keychain) rather than the static
-    # "env AUTH_TOKEN" label — tokens usually come from live browser cookies, and
-    # mislabeling the lane sent past debugging down a 30-minute wrong path.
-    if bird_status["authenticated"]:
-        lane = config.get('_AUTH_TOKEN_SOURCE') or 'env'
-        bird_status["username"] = f"{lane} AUTH_TOKEN"
-
-    # Optional runtime probe: don't show X green when it's effectively dead.
-    if probe and bird_status["authenticated"]:
-        if bird_x.probe_works() is False:
-            bird_status["authenticated"] = False
-            bird_status["username"] = "probe failed (no working X auth)"
-
-    # Xquik: the key-based X source used when bird's cookie auth isn't available.
-    # Probe so --diagnose reports the true state — funded, or configured-but-
-    # unpaid (402) — instead of false-green on mere key presence.
-    xquik_available = is_xquik_available(config)
-    xquik_working: bool | None = None
-    xquik_status = ""
-    if xquik_available:
-        if probe:
-            from . import xquik
-            xquik_working = xquik.probe_works(get_xquik_token(config))
-            xquik_status = xquik.probe_reason()
-        else:
-            xquik_status = "configured (not probed)"
-
-    # Determine active source. bird (browser cookies) and xAI win when present;
-    # when neither is available, xquik is the active X source. A probe that
-    # clearly failed (False) means xquik is not actually usable.
-    if bird_status["authenticated"]:
-        source = 'bird'
-    elif xai_available:
-        source = 'xai'
-    else:
-        if xquik_available and xquik_working is not False:
-            source = 'xquik'
-        else:
-            source = None
-
-    return {
-        "source": source,
-        "bird_installed": bird_status["installed"],
-        "bird_authenticated": bird_status["authenticated"],
-        "bird_username": bird_status["username"],
-        "xai_available": xai_available,
-        "xquik_available": xquik_available,
-        "xquik_working": xquik_working,
-        "xquik_status": xquik_status,
-        "can_install_bird": bird_status["can_install"],
-    }
-
-
 # Pinterest
 def is_pinterest_available(config: dict[str, Any]) -> bool:
     """Check if Pinterest source is available.
@@ -1230,17 +1028,3 @@ def is_pinterest_available(config: dict[str, Any]) -> bool:
 def get_pinterest_token(config: dict[str, Any]) -> str:
     """Get Pinterest API token (same ScrapeCreators key as TikTok/Instagram)."""
     return config.get('SCRAPECREATORS_API_KEY') or ''
-
-
-# Xquik
-def is_xquik_available(config: dict[str, Any]) -> bool:
-    """Check if Xquik X search source is available.
-
-    Requires XQUIK_API_KEY (API key from xquik.com).
-    """
-    return bool(config.get('XQUIK_API_KEY'))
-
-
-def get_xquik_token(config: dict[str, Any]) -> str:
-    """Get Xquik API key."""
-    return config.get('XQUIK_API_KEY') or ''

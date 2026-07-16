@@ -154,7 +154,6 @@ SOURCE_LABELS = {
     "truthsocial": "Truth Social",
     "linkedin": "LinkedIn",
     "xiaohongshu": "Xiaohongshu",
-    "x": "X",
     "github": "GitHub",
     "digg": "Digg",
     "arxiv": "arXiv",
@@ -884,7 +883,7 @@ def _is_pre_research_eligible(topic: str) -> bool:
 
 def _render_pre_research_warning(report: schema.Report) -> list[str]:
     """Emit a Pre-Research Status warning block when the engine was called
-    without --x-handle / --github-user / --subreddits / --plan / --auto-resolve
+    without --github-user / --subreddits / --plan / --auto-resolve
     on a topic that would benefit from pre-research resolution.
 
     Returns empty list when flags are present or topic is not eligible.
@@ -967,7 +966,7 @@ def _render_degraded_run_warning(report: schema.Report) -> list[str]:
         "missing-credentials problem; this is a skipped-LAW-7 problem.",
         "",
         "What went wrong: on a named-entity topic, the full contract is",
-        "(a) resolve X handles / GitHub repos / subreddits via your runtime's",
+        "(a) resolve GitHub repos / subreddits via your runtime's",
         "web-search tool (Step 0.55) and (b) generate a JSON `--plan` yourself",
         "and pass it via `--plan '$JSON'` (Step 0.75 / LAW 7). Both were skipped.",
         "",
@@ -1162,13 +1161,11 @@ def _render_resolved_entities_block(
     out: list[str] = ["## Resolved Entities", ""]
     for label, report in entity_reports:
         resolved = report.artifacts.get("resolved") or {}
-        x_handle = resolved.get("x_handle") or ""
         subs = resolved.get("subreddits") or []
         gh_user = resolved.get("github_user") or ""
         gh_repos = resolved.get("github_repos") or []
         context = resolved.get("context") or ""
 
-        x_display = f"@{x_handle}" if x_handle else "-"
         subs_display = (
             ", ".join(f"r/{s}" for s in subs[:5]) + (
                 f" (+{len(subs) - 5})" if len(subs) > 5 else ""
@@ -1182,7 +1179,7 @@ def _render_resolved_entities_block(
         context_display = _truncate(context, 120) if context else "-"
 
         out.append(
-            f"- **{label}**: X {x_display} | Subs {subs_display} | "
+            f"- **{label}**: Subs {subs_display} | "
             f"GitHub {gh_display} | Context: {context_display}"
         )
     return out
@@ -1350,7 +1347,7 @@ def render_full(report: schema.Report) -> str:
     # ALL items by source (flat dump, v2-style)
     lines.append("## All Items by Source")
     lines.append("")
-    source_order = ["reddit", "x", "youtube", "tiktok", "instagram", "threads", "pinterest",
+    source_order = ["reddit", "youtube", "tiktok", "instagram", "threads", "pinterest",
                     "hackernews", "bluesky", "truthsocial", "polymarket", "grounding", "xiaohongshu", "github", "digg", "perplexity", "jobs"]
     for source in source_order:
         items = evidence_report.items_by_source.get(source, [])
@@ -1377,9 +1374,6 @@ def render_full(report: schema.Report) -> str:
                     tc_score = tc.get("score", "")
                     attribution = _comment_attribution(item.source, tc.get("author"))
                     lines.append(f"  Top comment {attribution} ({tc_score} {vote_label}): {excerpt}")
-            # Digg: inline X-post quotes attached to the cluster.
-            for post in _digg_posts_for(item, limit=3):
-                lines.append(f"  > {_format_digg_quote(post)}")
             # Comment insights for Reddit
             insights = item.metadata.get("comment_insights", [])
             if insights:
@@ -1552,7 +1546,7 @@ def render_brief(report: schema.Report, cluster_limit: int = 8) -> str:
             source_label = _source_label(candidate.source)
             primary = schema.candidate_primary_item(candidate)
             author = primary.author if primary else None
-            if author and candidate.source in ("x", "tiktok", "instagram", "threads"):
+            if author and candidate.source in ("tiktok", "instagram", "threads"):
                 attribution = f"@{author} on {source_label}"
             elif author and candidate.source == "reddit":
                 container = primary.container if primary else None
@@ -1731,8 +1725,6 @@ def _render_candidate(
         source = primary.source if primary else None
         attribution = _comment_attribution(source, tc.get("author"))
         lines.append(f"   - {attribution} ({score} {vote_label}): {_truncate(excerpt.strip(), 240)}")
-    for post in _digg_posts_for(primary):
-        lines.append(f"   - {_format_digg_quote(post)}")
     insight = _comment_insight(primary)
     if insight:
         lines.append(f"   - Insight: {_truncate(insight, 220)}")
@@ -2032,7 +2024,6 @@ def _format_web_line_sources(items: list[schema.SourceItem], limit: int = 8) -> 
 _FOOTER_SOURCES: list[tuple[str, str, str, str, list[tuple[str, str]]]] = [
     # (source_key,  emoji, display_name, item_word_singular, [(engagement_key, word)])
     ("reddit",      "🟠", "Reddit",       "thread",   [("score", "upvotes"), ("num_comments", "comments")]),
-    ("x",           "🔵", "X",            "post",     [("likes", "likes"), ("reposts", "reposts")]),
     ("youtube",     "🔴", "YouTube",      "video",    [("views", "views")]),  # transcripts appended below in _build_source_footer_lines
     ("tiktok",      "🎵", "TikTok",       "video",    [("views", "views"), ("likes", "likes")]),
     ("instagram",   "📸", "Instagram",    "reel",     [("views", "views"), ("likes", "likes")]),
@@ -2157,12 +2148,12 @@ def _build_source_footer_lines(report: schema.Report) -> list[str]:
 def _top_voices_footer_line(report: schema.Report) -> str | None:
     """Return the 🗣️ Top voices line or None if no meaningful voices exist.
 
-    Combines top handles (X, Bluesky, Truth Social, YouTube, TikTok, Instagram)
+    Combines top handles (Bluesky, Truth Social, YouTube, TikTok, Instagram)
     and top subreddits, separated by │.
     """
     handle_items = {
         source: report.items_by_source.get(source) or []
-        for source in ("x", "bluesky", "truthsocial", "youtube", "tiktok", "instagram", "threads")
+        for source in ("bluesky", "truthsocial", "youtube", "tiktok", "instagram", "threads")
     }
     handle_counts: Counter[str] = Counter()
     for items in handle_items.values():
@@ -2313,7 +2304,7 @@ def _format_actor(item: schema.SourceItem | None) -> str | None:
         return None
     if item.source == "reddit" and item.container:
         return f"r/{item.container}"
-    if item.source in {"x", "bluesky", "truthsocial"} and item.author:
+    if item.source in {"bluesky", "truthsocial"} and item.author:
         return f"@{item.author.lstrip('@')}"
     if item.source == "youtube" and item.author:
         return item.author
@@ -2327,7 +2318,6 @@ def _format_actor(item: schema.SourceItem | None) -> str | None:
 # Per-source engagement display fields: list of (field_name, label) tuples.
 ENGAGEMENT_DISPLAY: dict[str, list[tuple[str, str]]] = {
     "reddit":       [("score", "pts"), ("num_comments", "cmt")],
-    "x":            [("likes", "likes"), ("reposts", "rt"), ("replies", "re")],
     "youtube":      [("views", "views"), ("likes", "likes"), ("comments", "cmt")],
     "tiktok":       [("views", "views"), ("likes", "likes"), ("comments", "cmt")],
     "instagram":    [("views", "views"), ("likes", "likes"), ("comments", "cmt")],
@@ -2433,7 +2423,7 @@ def _top_voices_overall(items_by_source: dict[str, list[schema.SourceItem]], lim
 def _stats_actor(item: schema.SourceItem) -> str | None:
     if item.source == "reddit" and item.container:
         return f"r/{item.container}"
-    if item.source in {"x", "bluesky", "truthsocial"} and item.author:
+    if item.source in {"bluesky", "truthsocial"} and item.author:
         return f"@{item.author.lstrip('@')}"
     if item.source == "youtube" and item.author:
         return item.author
@@ -2494,7 +2484,6 @@ _HANDLE_PREFIX: dict[str, str] = {
     "youtube": "@",
     "instagram": "@",
     "bluesky": "@",
-    "x": "@",
     "threads": "@",
 }
 
@@ -2540,39 +2529,6 @@ def _comment_insight(item: schema.SourceItem | None) -> str | None:
     if not insights:
         return None
     return str(insights[0]).strip() or None
-
-
-def _digg_posts_for(item: schema.SourceItem | None, limit: int = 3) -> list[dict]:
-    """Return up to `limit` parsed Digg posts attached as enrichment to a cluster.
-
-    Returns an empty list for non-digg sources or clusters without enrichment.
-    """
-    if not item or item.source != "digg":
-        return []
-    posts = item.metadata.get("posts") or []
-    if not isinstance(posts, list):
-        return []
-    out: list[dict] = []
-    for entry in posts:
-        if isinstance(entry, dict) and entry.get("body") and entry.get("username"):
-            out.append(entry)
-        if len(out) >= limit:
-            break
-    return out
-
-
-def _format_digg_quote(post: dict, body_limit: int = 200) -> str:
-    """Format a Digg-attached X post as an inline 'via Digg' quote line."""
-    handle = post.get("username") or ""
-    x_url = post.get("x_url") or ""
-    body = (post.get("body") or "").replace("\n", " ").strip()
-    if len(body) > body_limit:
-        body = body[: body_limit - 1].rstrip() + "…"
-    if x_url and handle:
-        return f"[@{handle}]({x_url}) via Digg: {body}"
-    if handle:
-        return f"@{handle} via Digg: {body}"
-    return f"via Digg: {body}"
 
 
 def _transcript_highlights(item: schema.SourceItem | None) -> list[str]:
@@ -2657,7 +2613,7 @@ def _render_best_takes(
                     text = body
         source_label = _source_label(candidate.source)
         author = candidate.source_items[0].author if candidate.source_items else None
-        attribution = f"@{author} on {source_label}" if author and candidate.source in ("x", "tiktok", "instagram", "threads") else f"{source_label}"
+        attribution = f"@{author} on {source_label}" if author and candidate.source in ("tiktok", "instagram", "threads") else f"{source_label}"
         if author and candidate.source == "reddit":
             container = candidate.source_items[0].container if candidate.source_items else None
             attribution = f"r/{container} comment" if container else "Reddit"

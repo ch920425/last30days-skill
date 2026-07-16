@@ -41,8 +41,6 @@ def _fake_websearch(label_to_items: dict[str, list[dict]]):
             return label_to_items.get("subreddit", EMPTY_RESULTS), {}
         if "news" in query:
             return label_to_items.get("news", EMPTY_RESULTS), {}
-        if "handle" in query:
-            return label_to_items.get("x_handle", EMPTY_RESULTS), {}
         if "github" in query:
             return label_to_items.get("github", EMPTY_RESULTS), {}
         return EMPTY_RESULTS, {}

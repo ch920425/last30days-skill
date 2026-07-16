@@ -7,7 +7,7 @@ what the next run will do.
 
 Two resolution modes:
 
-- ``alternative`` (X, YouTube, web search): the pipeline tries genuinely
+- ``alternative`` (YouTube, web search): the pipeline tries genuinely
   interchangeable backends in a declared order. Resolution probes ALL
   candidates first, then picks (collect-then-pick): the first fully-usable
   backend wins the "will use" prediction; otherwise the best degraded
@@ -29,7 +29,7 @@ say the next run will try" — rendered as "will use". It is not an
 observation of what served a past run, and runtime failover can still
 diverge mid-run (a present-but-expired paid key passes a presence probe).
 
-Paid lanes (xai, xquik, serper, and every other API-key backend, including
+Paid lanes (serper and every other API-key backend, including
 ScrapeCreators) probe KEY PRESENCE ONLY: a dict lookup, never a network
 call or credential spend. Binary-backed lanes reuse the U1 dependency
 probe layer (``health.probe_dependency``) so a stale shim reads as BROKEN,
@@ -74,12 +74,6 @@ _SC_PRESCRIPTION = (
     "set SCRAPECREATORS_API_KEY (free 10,000-call signup: "
     f"{prescriptions.get('scrapecreators', 'key_missing').fix_cli})"
 )
-_X_COOKIES_PRESCRIPTION = (
-    "run setup with browser-cookie consent: "
-    f"{prescriptions.get('x', 'cookies_missing').fix_cli}"
-)
-
-
 @dataclass
 class BackendFinding:
     """Side-effect-free probe outcome for one backend of a chained source.
@@ -122,7 +116,7 @@ class ChainDescriptor:
     source: str
     mode: str
     backends: Tuple[BackendSpec, ...]
-    pin_var: Optional[str] = None   # env var pin (X, Reddit)
+    pin_var: Optional[str] = None   # env var pin (Reddit)
     pin_flag: Optional[str] = None  # CLI flag pin (web: --web-backend)
 
 
@@ -195,62 +189,6 @@ def _key_probe(name: str, key_var: str, requires: str, note: str = "") -> Callab
     return probe
 
 
-def _probe_bird(config: Dict[str, Any]) -> BackendFinding:
-    """Bird = vendored X GraphQL client (node script) + browser-cookie creds.
-
-    Cookie presence is checked FIRST, mirroring ``env._x_backend_available``'s
-    gating (``has_bird_creds and is_bird_installed()``): without cookies bird
-    is unconfigured regardless of node/script state, and the fix is the
-    cookie-consent flow — a broken node runtime must not turn an unconfigured
-    backend into an error carrying a node prescription.
-    """
-    from . import bird_x
-
-    requires = "X browser cookies (AUTH_TOKEN/CT0) + node"
-    if not (config.get("AUTH_TOKEN") and config.get("CT0")):
-        return BackendFinding(
-            name="bird",
-            status=health.MISSING,
-            detail="X browser cookies (AUTH_TOKEN/CT0) not configured",
-            prescription=_X_COOKIES_PRESCRIPTION,
-            requires=requires,
-        )
-    if not bird_x.is_bird_installed():
-        # Distinguish a missing/broken node runtime from a missing script.
-        node = health.probe_dependency("node")
-        if node.status != health.OK:
-            return BackendFinding(
-                name="bird",
-                status=node.status,
-                detail=node.detail,
-                prescription=node.prescription,
-                requires=requires,
-            )
-        return BackendFinding(
-            name="bird",
-            status=health.MISSING,
-            detail="vendored bird-search client not found",
-            prescription="reinstall the skill (npx skills add . -g -y) to restore lib/vendor/bird-search",
-            requires=requires,
-        )
-    node = health.probe_dependency("node")
-    if node.status != health.OK:
-        # Resolvable-but-broken node (stale shim) must not read as usable.
-        return BackendFinding(
-            name="bird",
-            status=node.status,
-            detail=node.detail,
-            prescription=node.prescription,
-            requires=requires,
-        )
-    return BackendFinding(
-        name="bird",
-        status=health.OK,
-        detail="browser-cookie auth (AUTH_TOKEN/CT0) configured",
-        requires=requires,
-    )
-
-
 def _probe_ytdlp(config: Dict[str, Any]) -> BackendFinding:
     """yt-dlp via the U1 dependency-probe layer (missing/broken/timeout)."""
     dep = health.probe_dependency("yt-dlp")
@@ -296,13 +234,6 @@ def _probe_reddit_public(config: Dict[str, Any]) -> BackendFinding:
 # Registry: routing declared once, from env.py's definitions where they exist.
 # ---------------------------------------------------------------------------
 
-_X_PROBES: Dict[str, Callable[[Dict[str, Any]], BackendFinding]] = {
-    "xai": _key_probe("xai", "XAI_API_KEY", "XAI_API_KEY (xAI/Grok live search)"),
-    "bird": _probe_bird,
-    "xquik": _key_probe("xquik", "XQUIK_API_KEY", "XQUIK_API_KEY (xquik.com)"),
-}
-_X_PAID = {"xai", "xquik"}
-
 _WEB_PROBES: Dict[str, Callable[[Dict[str, Any]], BackendFinding]] = {
     "brave": _key_probe("brave", "BRAVE_API_KEY", "BRAVE_API_KEY"),
     "exa": _key_probe("exa", "EXA_API_KEY", "EXA_API_KEY"),
@@ -323,25 +254,6 @@ _SC_SPEC = BackendSpec(
 )
 
 DESCRIPTORS: Dict[str, ChainDescriptor] = {
-    # X: chain order and pin var imported from env.py (single source of truth).
-    "x": ChainDescriptor(
-        source="x",
-        mode=MODE_ALTERNATIVE,
-        backends=tuple(
-            BackendSpec(
-                name=name,
-                requires={
-                    "xai": "XAI_API_KEY (xAI/Grok live search)",
-                    "bird": "X browser cookies (AUTH_TOKEN/CT0) + node",
-                    "xquik": "XQUIK_API_KEY (xquik.com)",
-                }[name],
-                probe=_X_PROBES[name],
-                paid=name in _X_PAID,
-            )
-            for name in env.X_BACKEND_ORDER
-        ),
-        pin_var=env.X_BACKEND_PIN_VAR,
-    ),
     "youtube": ChainDescriptor(
         source="youtube",
         mode=MODE_ALTERNATIVE,
@@ -464,8 +376,7 @@ def _resolve_alternative(
             pin_name = raw
 
     if pin_name:
-        # A pin forces a single backend (no failover) — mirror
-        # env.x_backend_chain's pin semantics exactly.
+        # A pin forces a single backend (no failover).
         res.pinned = True
         res.pin = pin_name
         finding = by_name[pin_name]

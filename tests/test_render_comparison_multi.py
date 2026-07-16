@@ -169,7 +169,6 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
         reports = [
             self._build_with_resolved("OpenAI", "OpenAI", {
                 "entity": "OpenAI",
-                "x_handle": "OpenAI",
                 "subreddits": ["OpenAI", "MachineLearning"],
                 "github_user": "openai",
                 "github_repos": ["openai/gpt"],
@@ -177,7 +176,6 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
             }),
             self._build_with_resolved("Anthropic", "Anthropic", {
                 "entity": "Anthropic",
-                "x_handle": "AnthropicAI",
                 "subreddits": ["ClaudeAI"],
                 "github_user": "anthropics",
                 "github_repos": [],
@@ -186,10 +184,10 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
         ]
         rendered = render.render_comparison_multi(reports)
         self.assertIn("## Resolved Entities", rendered)
-        self.assertIn("**OpenAI**: X @OpenAI", rendered)
+        self.assertIn("**OpenAI**: Subs r/OpenAI, r/MachineLearning", rendered)
         self.assertIn("r/OpenAI, r/MachineLearning", rendered)
         self.assertIn("@openai (openai/gpt)", rendered)
-        self.assertIn("**Anthropic**: X @AnthropicAI", rendered)
+        self.assertIn("**Anthropic**: Subs r/ClaudeAI", rendered)
         # Missing context renders as "-"
         self.assertIn("Context: -", rendered)
 
@@ -205,7 +203,6 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
         reports = [
             self._build_with_resolved("OpenAI", "OpenAI", {
                 "entity": "OpenAI",
-                "x_handle": "",
                 "subreddits": [],
                 "github_user": "",
                 "github_repos": [],
@@ -213,14 +210,13 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
             }),
         ]
         rendered = render.render_comparison_multi(reports)
-        self.assertIn("**OpenAI**: X - | Subs - | GitHub - | Context: -", rendered)
+        self.assertIn("**OpenAI**: Subs - | GitHub - | Context: -", rendered)
 
     def test_long_context_truncated(self):
         long = "a" * 200
         reports = [
             self._build_with_resolved("X", "X", {
                 "entity": "X",
-                "x_handle": "",
                 "subreddits": [],
                 "github_user": "",
                 "github_repos": [],
@@ -236,7 +232,6 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
         reports = [
             self._build_with_resolved("OpenAI", "OpenAI", {
                 "entity": "OpenAI",
-                "x_handle": "OpenAI",
                 "subreddits": ["OpenAI"],
                 "github_user": "",
                 "github_repos": [],
@@ -245,13 +240,12 @@ class ResolvedEntitiesBlockTests(unittest.TestCase):
         ]
         out = render.render_comparison_multi_context(reports)
         self.assertIn("## Resolved Entities", out)
-        self.assertIn("**OpenAI**: X @OpenAI", out)
+        self.assertIn("**OpenAI**: Subs r/OpenAI", out)
 
     def test_subreddit_overflow_truncated(self):
         reports = [
             self._build_with_resolved("X", "X", {
                 "entity": "X",
-                "x_handle": "",
                 "subreddits": ["a", "b", "c", "d", "e", "f", "g"],
                 "github_user": "",
                 "github_repos": [],

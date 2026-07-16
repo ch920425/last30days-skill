@@ -33,17 +33,11 @@ class FooterNudgeSuppressionTests(unittest.TestCase):
             # BRAVE/EXA/SERPER/PARALLEL key doesn't make grounding "available"
             # and suppress the promo we're checking for.
             "LAST30DAYS_CONFIG_DIR": "",
-            # Pin X as available so _missing_sources_for_promo selects "web"
-            # (otherwise the "x" promo wins and the BRAVE_API_KEY string never
-            # appears).
-            "XAI_API_KEY": "test-stub",
         }
         # Strip any grounded-web keys the host might have so the promo path
-        # triggers deterministically in mock + no-backend. Also strip X cookie
-        # credentials so XAI_API_KEY is the unambiguous X backend.
+        # triggers deterministically in mock + no-backend.
         for key in ("BRAVE_API_KEY", "EXA_API_KEY", "SERPER_API_KEY",
-                    "PARALLEL_API_KEY", "OPENROUTER_API_KEY", "PERPLEXITY_API_KEY",
-                    "AUTH_TOKEN", "CT0", "LAST30DAYS_X_BACKEND"):
+                    "PARALLEL_API_KEY", "OPENROUTER_API_KEY", "PERPLEXITY_API_KEY"):
             env.pop(key, None)
         # Run from a tmpdir so _find_project_env() can't walk up into any
         # .claude/last30days.env above the repo on the contributor's machine.
@@ -63,7 +57,7 @@ class FooterNudgeSuppressionTests(unittest.TestCase):
         result = self._run(
             "--competitors-list", "Anthropic",
             "--competitors-plan",
-            '{"Anthropic":{"x_handle":"AnthropicAI","subreddits":["ClaudeAI"]}}',
+            '{"Anthropic":{"subreddits":["ClaudeAI"]}}',
             topic="OpenAI",
         )
         combined = result.stdout + result.stderr

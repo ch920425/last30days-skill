@@ -145,10 +145,6 @@ class TestFormatActor(unittest.TestCase):
         item = _item(source="reddit", container="python")
         self.assertEqual(render._format_actor(item), "r/python")
 
-    def test_x_handle(self):
-        item = _item(source="x", author="karpathy")
-        self.assertEqual(render._format_actor(item), "@karpathy")
-
     def test_youtube_channel(self):
         item = _item(source="youtube", author="Fireship")
         self.assertEqual(render._format_actor(item), "Fireship")
@@ -550,4 +546,3 @@ class TestXaiModelDefault(unittest.TestCase):
         from lib import providers
         self.assertIn("grok-4", providers.XAI_DEFAULT,
                       f"XAI_DEFAULT should be a grok-4 model, got: {providers.XAI_DEFAULT}")
-

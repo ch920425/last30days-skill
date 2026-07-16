@@ -25,20 +25,18 @@ def test_non_modal_hosts_are_named():
         assert host in prose
 
 
-def test_non_modal_cookie_consent_uses_engine_allow_flag():
+def test_non_modal_setup_never_enables_browser_cookies_for_x():
     prose = _prose_flow()
-    consent = prose.index("Cookie consent")
-    allow = prose.index("setup --allow-browser-cookies")
-    decline = prose.index("FROM_BROWSER=off")
-    assert consent < allow
-    assert consent < decline
+    assert "setup --allow-browser-cookies" not in prose
+    assert "Do not read browser cookies" in prose
+    assert "X/Twitter is outside this engine" in prose
 
 
-def test_non_modal_preflight_runs_before_cookie_consent():
+def test_non_modal_preflight_runs_before_setup():
     prose = _prose_flow()
     preflight = prose.index("--preflight")
-    consent = prose.index("Cookie consent")
-    assert preflight < consent
+    setup = prose.index("**3. Setup.**")
+    assert preflight < setup
     assert "does not read browser-cookie values" in prose
     assert "does not write setup/config/report files" in prose
     assert "does not run research" in prose

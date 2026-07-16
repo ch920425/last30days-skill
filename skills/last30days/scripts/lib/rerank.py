@@ -214,8 +214,8 @@ def rerank_candidates(
     """Rerank the fused shortlist, demoting candidates the reranker scored as irrelevant.
 
     ``resolved_handles`` is the normalized (``@``-stripped, lowercased) set of
-    handles the run resolved for the topic (``--x-handle``, ``--x-related``, and
-    the GitHub user). A candidate authored by one of these is first-party: it is
+    handles the run resolved from first-party source metadata. A candidate
+    authored by one of these is first-party: it is
     exempted from the entity-miss demotion in ``_fallback_tuple`` (a post almost
     never repeats its own author's name, so the body-text grounding check would
     otherwise bury the subject's own highest-signal posts).

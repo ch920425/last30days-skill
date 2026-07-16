@@ -24,13 +24,11 @@ RUNNABLE = re.compile(
     r"^(?:python3 \S*last30days\.py\b"
     r"|[A-Z][A-Z0-9_]*="
     r"|export [A-Z][A-Z0-9_]*="
-    r"|(?:brew|pipx|pip|scoop|npx|npm|xurl|yt-dlp|docker) )"
+    r"|(?:brew|pipx|pip|scoop|npx|npm|yt-dlp|docker) )"
 )
 
 # The seed failure inventory from the plan (U3 approach section).
 SEED_INVENTORY = {
-    ("x", "cookies_missing"),
-    ("x", "cookies_expired"),
     ("scrapecreators", "key_missing"),
     ("bluesky", "app_password_missing"),
     ("youtube", "transcription_key_missing"),
@@ -106,11 +104,6 @@ class TestCompletenessLint:
 # ---------------------------------------------------------------------------
 
 class TestDocumentedCliForms:
-    def test_x_cookie_fixes_use_setup_with_browser_cookie_consent(self):
-        expected = "python3 skills/last30days/scripts/last30days.py setup --allow-browser-cookies"
-        assert prescriptions.get("x", "cookies_missing").fix_cli == expected
-        assert prescriptions.get("x", "cookies_expired").fix_cli == expected
-
     def test_scrapecreators_fix_is_the_github_device_flow(self):
         entry = prescriptions.get("scrapecreators", "key_missing")
         assert entry.fix_cli == "python3 skills/last30days/scripts/last30days.py setup --github"
@@ -135,44 +128,25 @@ def _nudge(config_overrides=None, result_overrides=None, ytdlp_installed=False):
     from lib import youtube_yt
 
     config = {
-        "AUTH_TOKEN": None,
-        "CT0": None,
         "XAI_API_KEY": None,
-        "XQUIK_API_KEY": None,
         "SCRAPECREATORS_API_KEY": None,
     }
     config.update(config_overrides or {})
-    results = {"x_error": None, "youtube_error": None, "reddit_error": None}
+    results = {"youtube_error": None, "reddit_error": None}
     results.update(result_overrides or {})
     with patch.object(youtube_yt, "is_ytdlp_installed", return_value=ytdlp_installed):
         return compute_quality_score(config, results)
 
 
 class TestSharedWithQualityNudge:
-    def test_x_cookie_expired_nudge_is_built_from_the_registry_entry(self):
-        entry = prescriptions.get("x", "cookies_expired")
-        q = _nudge(
-            config_overrides={"AUTH_TOKEN": "tok123"},
-            result_overrides={"x_error": "401 unauthorized"},
-            ytdlp_installed=True,
-        )
-        assert q["nudge_text"] is not None
-        assert entry.fix_nl in q["nudge_text"]
-
-    def test_x_cookie_missing_nudge_is_built_from_the_registry_entry(self):
-        entry = prescriptions.get("x", "cookies_missing")
-        q = _nudge(ytdlp_installed=True)
-        assert entry.fix_nl in q["nudge_text"]
-
     def test_ytdlp_missing_nudge_uses_registry_cli(self):
         entry = prescriptions.get("youtube", "ytdlp_missing")
-        q = _nudge(config_overrides={"AUTH_TOKEN": "tok123"}, ytdlp_installed=False)
+        q = _nudge(ytdlp_installed=False)
         assert entry.fix_cli in q["nudge_text"]
 
     def test_ytdlp_stale_degraded_nudge_uses_registry_cli_forms(self):
         entry = prescriptions.get("youtube", "ytdlp_stale")
         q = _nudge(
-            config_overrides={"AUTH_TOKEN": "tok123"},
             ytdlp_installed=True,
             result_overrides={
                 "youtube_videos_count": 6,
@@ -186,8 +160,7 @@ class TestSharedWithQualityNudge:
     def test_quality_nudge_source_no_longer_hardcodes_fix_strings(self):
         """The migrated fix strings must live in the registry only.
 
-        Trigger logic legitimately still reads credential names (e.g.
-        ``config.get("XAI_API_KEY")``); this guards the FIX text.
+        This guards the FIX text.
         """
         source = (
             REPO_ROOT / "skills/last30days/scripts/lib/quality_nudge.py"
@@ -212,12 +185,6 @@ class TestFallback:
         assert RUNNABLE.match(entry.fix_cli)
         assert entry.source == "linkedin"
         assert entry.failure == "flux_capacitor_missing"
-
-    def test_get_returns_registered_entry_when_present(self):
-        assert prescriptions.get("x", "cookies_missing") is prescriptions.REGISTRY[
-            ("x", "cookies_missing")
-        ]
-
 
 # ---------------------------------------------------------------------------
 # Composition with U1 dependency probes (health.DependencyProbe)
@@ -310,17 +277,6 @@ class TestDependencyProbeComposition:
 # ---------------------------------------------------------------------------
 
 class TestBackendComposition:
-    def test_bird_cookie_prescription_embeds_the_registry_cli(self):
-        from lib import backends, bird_x
-
-        entry = prescriptions.get("x", "cookies_missing")
-        ok_node = health.DependencyProbe(name="node", status=health.OK, detail="v22.0.0")
-        with patch.object(bird_x, "is_bird_installed", return_value=True), \
-                patch.object(health, "probe_dependency", return_value=ok_node):
-            finding = backends._X_PROBES["bird"]({})
-        assert finding.status == health.MISSING
-        assert entry.fix_cli in finding.prescription
-
     def test_scrapecreators_prescription_embeds_the_registry_cli(self):
         from lib import backends
 

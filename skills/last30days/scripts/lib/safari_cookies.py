@@ -98,12 +98,17 @@ def extract_safari_cookies_macos(
     Extract cookies from Safari on macOS.
 
     Args:
-        domain: Domain to match (substring match, e.g. "x.com")
-        cookie_names: List of cookie names to extract (e.g. ["auth_token", "ct0"])
+        domain: Domain to match by substring.
+        cookie_names: List of cookie names to extract (e.g. ["reddit_session", "csrf_token"])
 
     Returns:
         Dict mapping cookie name to value for found cookies, or None on failure.
     """
+    normalized = domain.strip().lower().lstrip(".")
+    if normalized == "x.com" or normalized.endswith(".x.com") or (
+        normalized == "twitter.com" or normalized.endswith(".twitter.com")
+    ):
+        return None
     if sys.platform != "darwin":
         return None
 
@@ -182,7 +187,7 @@ def _parse_binary_cookies(
         page_data = raw[offset : offset + ps]
         cookies = _parse_page(page_data)
         for c in cookies:
-            # Substring match on domain (handles leading dots like ".x.com")
+            # Substring match on domain, including leading-dot cookie domains.
             if domain in c["url"] and c["name"] in names_set:
                 result[c["name"]] = c["value"]
         offset += ps

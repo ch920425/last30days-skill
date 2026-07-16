@@ -56,8 +56,6 @@ EVAL_CREDENTIAL_ENV_KEYS = (
     "BSKY_HANDLE",
     "BSKY_APP_PASSWORD",
     "TRUTHSOCIAL_TOKEN",
-    "AUTH_TOKEN",
-    "CT0",
 )
 
 
@@ -77,7 +75,6 @@ def row_best_date(row: dict[str, Any]) -> str | None:
 
 V2_SOURCE_KEYS = [
     ("reddit", "title"),
-    ("x", "text"),
     ("youtube", "title"),
     ("tiktok", "text"),
     ("instagram", "text"),

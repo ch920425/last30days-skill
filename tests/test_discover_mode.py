@@ -78,18 +78,16 @@ def test_discovery_plan_keeps_keyless_reddit_for_unknown_domains():
 
 
 def test_discovery_plan_empty_domain_is_global_trending():
-    """Bare --discover: sweep every river feed's hot list; X sits out of the
-    nominate stage because its search lane needs a keyword."""
+    """Bare --discover sweeps every supported river feed's hot list."""
     plan = planner.build_discovery_plan(
         "",
-        available_sources=["reddit", "hackernews", "digg", "x"],
+        available_sources=["reddit", "hackernews", "digg"],
     )
 
     assert plan.domain == ""
     assert plan.category is None
     assert plan.subreddits == ["all"]
     assert plan.sources == ["reddit", "hackernews", "digg"]
-    assert "x" not in plan.sources
 
 
 def test_global_discovery_disables_keyword_gate():
@@ -174,33 +172,6 @@ def test_domain_filter_tokenizes_non_latin_domains(domain, listing_title):
     assert pipeline._matches_discovery_domain(domain, listing_title)
 
 
-def test_x_velocity_excludes_views_and_bookmarks():
-    xquik_item = _item(
-        "xquik",
-        "x",
-        "X backend reach",
-        engagement={
-            "likes": 10,
-            "reposts": 3,
-            "replies": 2,
-            "quotes": 1,
-            "views": 100_000,
-            "bookmarks": 5_000,
-        },
-    )
-    standard_item = _item(
-        "standard",
-        "x",
-        "X backend interactions",
-        engagement={"likes": 10, "reposts": 3, "replies": 2, "quotes": 1},
-    )
-
-    assert rerank.discovery_engagement_total(xquik_item) == 16
-    assert rerank.engagement_velocity_score(
-        xquik_item, as_of_date="2026-07-10"
-    ) == rerank.engagement_velocity_score(standard_item, as_of_date="2026-07-10")
-
-
 def test_discovery_topic_name_uses_entities_shared_across_sources():
     reddit = _candidate(_item("r1", "reddit", "OpenAI Agent SDK launch details"))
     hn = _candidate(_item("h1", "hackernews", "OpenAI Agent SDK reaches developers"))
@@ -277,22 +248,21 @@ def test_keyless_discovery_degrades_without_digg():
     assert report.source_status["reddit"].state == "ok"
     assert report.source_status["hackernews"].state == "ok"
     assert report.source_status["digg"].state == "skipped-unconfigured"
-    assert report.source_status["x"].state == "skipped-unconfigured"
     assert all(topic.command.startswith('/last30days "') for topic in report.topics)
 
 
 def test_discovery_drops_zero_velocity_clusters():
     raw_item = {
         "id": "zero-engagement",
-        "text": "AI agent launch with no interactions",
-        "url": "https://x.com/example/status/1",
-        "author_handle": "example",
+        "title": "AI agent launch with no interactions",
+        "url": "https://example.com/zero-engagement",
+        "author": "example",
         "date": "2026-07-09",
-        "engagement": {"likes": 0, "reposts": 0, "replies": 0, "quotes": 0},
+        "engagement": {"points": 0, "comments": 0},
         "relevance": 0.9,
     }
 
-    with mock.patch.object(pipeline, "available_sources", return_value=["x"]), \
+    with mock.patch.object(pipeline, "available_sources", return_value=["hackernews"]), \
          mock.patch.object(pipeline, "_fetch_discovery_source", return_value=([raw_item], None)):
         report = pipeline.run_discover(
             domain="AI agents",
@@ -317,61 +287,6 @@ def test_explicit_unavailable_discovery_source_does_not_widen_to_other_sources()
             )
 
     fetch.assert_not_called()
-
-
-def test_discovery_reads_browser_credentials_and_does_not_schedule_pending_x():
-    parser = cli.build_parser()
-    args, extra = parser.parse_known_args(["--discover", "AI agents"])
-    assert cli._config_policy_for_args(args, "", extra).browser_cookies == "read"
-
-    no_cookies_args, extra = parser.parse_known_args(
-        ["--no-browser-cookies", "--discover", "AI agents"]
-    )
-    assert cli._config_policy_for_args(no_cookies_args, "", extra).browser_cookies == "off"
-
-    fetched_sources: list[str] = []
-
-    def fake_available_sources(config, requested_sources, *, x_pending=None, local_only=False):
-        assert x_pending is False
-        return ["reddit", "hackernews"] + (["x"] if x_pending is not False else [])
-
-    def fake_fetch(source, plan, *, from_date, to_date, depth, mock, config, keyword_gate=True):
-        fetched_sources.append(source)
-        return pipeline._mock_discovery_items(source, plan.domain, to_date), None
-
-    with mock.patch.object(pipeline, "available_sources", side_effect=fake_available_sources), \
-         mock.patch.object(pipeline, "_fetch_discovery_source", side_effect=fake_fetch):
-        report = pipeline.run_discover(
-            domain="AI agents",
-            config={"FROM_BROWSER": "firefox", "_BROWSER_COOKIE_MODE": "plan_only"},
-            as_of_date="2026-07-10",
-        )
-
-    assert "x" not in fetched_sources
-    assert report.source_status["x"].state == "skipped-unconfigured"
-
-
-def test_authenticated_x_discovery_uses_available_backend():
-    plan = planner.build_discovery_plan(
-        "AI agents",
-        available_sources=["x"],
-    )
-    raw = pipeline._mock_discovery_items("x", plan.domain, "2026-07-10")
-    with mock.patch.object(pipeline.env, "x_backend_chain", return_value=["bird"]), \
-         mock.patch.object(pipeline, "_fetch_x_backend", return_value=(raw, "")) as fetch:
-        items, error = pipeline._fetch_discovery_source(
-            "x",
-            plan,
-            from_date="2026-06-10",
-            to_date="2026-07-10",
-            depth="default",
-            mock=False,
-            config={"AUTH_TOKEN": "dummy", "CT0": "dummy"},
-        )
-
-    assert error is None
-    assert len(items) == 6
-    fetch.assert_called_once()
 
 
 def test_listing_failure_is_not_reported_as_clean_no_results():
@@ -556,7 +471,7 @@ def test_discovery_cli_rejects_historical_as_of():
     assert "current live listings" in result.stderr
 
 
-def test_discovery_filters_incompatible_default_sources_but_rejects_explicit_only():
+def test_discovery_rejects_retired_default_source_and_incompatible_explicit_source():
     default_result = subprocess.run(
         [
             sys.executable,
@@ -572,7 +487,8 @@ def test_discovery_filters_incompatible_default_sources_but_rejects_explicit_onl
         text=True,
         check=False,
     )
-    assert default_result.returncode == 0, default_result.stderr
+    assert default_result.returncode == 1
+    assert "Unknown search source in LAST30DAYS_DEFAULT_SEARCH: x" in default_result.stderr
 
     explicit_result = subprocess.run(
         [
@@ -625,32 +541,6 @@ def test_domain_matching_preserves_non_plural_anchors():
     assert pipeline._matches_discovery_domain("supply chain crisis", "The crisis deepens for chip supply")
     # Plural matching still works both directions.
     assert pipeline._matches_discovery_domain("AI agents", "The best AI agent stacks")
-
-
-def test_x_fallback_success_is_clean(monkeypatch):
-    from lib import pipeline, env
-
-    calls = []
-
-    def fake_fetch(backend, subquery, from_date, to_date, depth, config):
-        calls.append(backend)
-        if backend == "bird":
-            return [], "cookie expired"
-        return [object()], None
-
-    monkeypatch.setattr(pipeline, "_fetch_x_backend", fake_fetch)
-    monkeypatch.setattr(env, "x_backend_chain", lambda config: ["bird", "xquik"])
-    plan = pipeline.schema.DiscoveryPlan(
-        domain="ai agents", category=None, subreddits=[], sources=["x"],
-    )
-    items, error = pipeline._fetch_discovery_source(
-        "x", plan,
-        from_date="2026-06-11", to_date="2026-07-11", depth="quick",
-        mock=False, config={},
-    )
-    assert error is None
-    assert len(items) == 1
-    assert calls == ["bird", "xquik"]
 
 
 def _digg_envelope(*clusters: dict) -> dict:
@@ -723,26 +613,6 @@ def test_digg_discovery_all_filtered_is_clean_no_results(monkeypatch):
     )
     assert error is None
     assert items == []
-
-
-def test_x_discovery_preserves_producing_backends_own_error(monkeypatch):
-    """A backend that returns items plus its own error is a partial outcome;
-    only earlier failed-over backends' errors are observability-only."""
-    monkeypatch.setattr(
-        pipeline, "_fetch_x_backend",
-        lambda *a, **k: ([{"id": "x-1", "title": "t"}], "rate limited after page 1"),
-    )
-    monkeypatch.setattr(pipeline.env, "x_backend_chain", lambda config: ["bird"])
-    plan = schema.DiscoveryPlan(
-        domain="ai agents", category=None, subreddits=[], sources=["x"],
-    )
-    items, error = pipeline._fetch_discovery_source(
-        "x", plan,
-        from_date="2026-06-11", to_date="2026-07-11", depth="quick",
-        mock=False, config={},
-    )
-    assert len(items) == 1
-    assert error == "rate limited after page 1"
 
 
 def test_discovery_exits_when_configured_sources_have_no_discovery_feed(monkeypatch, capsys):

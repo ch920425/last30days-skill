@@ -1,7 +1,7 @@
 {
   "name": "last30days-skill",
   "version": "3.16.0",
-  "description": "Research a topic from the last 30 days across Reddit, X, YouTube, TikTok, Instagram, Hacker News, Polymarket, and the web.",
+  "description": "Research a topic from the last 30 days across Reddit, YouTube, TikTok, Instagram, Hacker News, Polymarket, and the web.",
   "settings": [
     {
       "name": "Extension Directory",
@@ -23,7 +23,7 @@
     },
     {
       "name": "xAI API Key",
-      "description": "xAI API Key for X/Twitter search (optional)",
+      "description": "xAI API Key for optional reasoning and reranking; never used for X/Twitter acquisition",
       "envVar": "XAI_API_KEY",
       "sensitive": true
     },
@@ -49,18 +49,6 @@
       "name": "Apify API Token",
       "description": "Apify API Token (optional legacy)",
       "envVar": "APIFY_API_TOKEN",
-      "sensitive": true
-    },
-    {
-      "name": "Twitter AUTH_TOKEN",
-      "description": "Twitter browser AUTH_TOKEN cookie for direct X search (optional)",
-      "envVar": "AUTH_TOKEN",
-      "sensitive": true
-    },
-    {
-      "name": "Twitter CT0",
-      "description": "Twitter browser CT0 cookie (optional, pair with AUTH_TOKEN)",
-      "envVar": "CT0",
       "sensitive": true
     }
   ]

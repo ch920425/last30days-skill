@@ -42,8 +42,6 @@ FAKE_SECRETS = {
     "XAI_API_KEY": "dummy-xai-secret-000",
     "BRAVE_API_KEY": "dummy-brave-secret-000",
     "GROQ_API_KEY": "dummy-groq-secret-000",
-    "AUTH_TOKEN": "dummy-auth-token-secret-000",
-    "CT0": "dummy-ct0-secret-000",
     "BSKY_HANDLE": "dummy.example.social",
     "BSKY_APP_PASSWORD": "dummy-bsky-secret-000",
     "TRUTHSOCIAL_TOKEN": "dummy-truth-secret-000",
@@ -100,22 +98,6 @@ class _Hermetic:
         self._patches = [
             mock.patch("lib.health.probe_dependency", _probe_dep(probe_map, default_status)),
             mock.patch("lib.env.is_ytdlp_available", return_value=ytdlp_ok),
-            mock.patch("lib.bird_x.is_bird_installed", return_value=False),
-            mock.patch("lib.bird_x.set_credentials", lambda *a, **k: None),
-            mock.patch("lib.bird_x.get_bird_status", return_value=dict(BIRD_STATUS_OFF)),
-            # The doctor path is local-only for xurl: the live `xurl whoami`
-            # network check must never run (no-network guarantee).
-            mock.patch(
-                "lib.xurl_x.is_available",
-                side_effect=AssertionError(
-                    "doctor path ran the live `xurl whoami` network check"
-                ),
-            ),
-            mock.patch("lib.xurl_x.has_stored_auth", return_value=False),
-            mock.patch(
-                "lib.xurl_x.stored_auth_status",
-                return_value=("missing", "no token store at ~/.xurl"),
-            ),
             mock.patch("lib.backends.which", lambda name: None),
             # Hermetic library: never glob the user's real saved-research dir.
             # Tests that assert a specific brief count override this.
@@ -177,7 +159,7 @@ class KeylessEnvironment(unittest.TestCase):
             self.assertEqual("ok", self.report["sources"][name]["status"], name)
 
     def test_key_gated_sources_off_with_prescriptions(self):
-        for name in ("x", "tiktok", "instagram", "threads", "bluesky", "truthsocial"):
+        for name in ("tiktok", "instagram", "threads", "bluesky", "truthsocial"):
             record = self.report["sources"][name]
             self.assertEqual("off", record["tier"], name)
             self.assertIn(record["status"], ("unconfigured", "opt-in"), name)
@@ -221,55 +203,6 @@ class GitHubAuthDetection(unittest.TestCase):
         self.assertEqual("ok", record["tier"])
         self.assertEqual("ok", record["status"])
         self.assertIn("unauthenticated REST tier", record["detail"])
-
-
-class UnconfiguredXWithBrokenNode(unittest.TestCase):
-    """F9 repro: no X configuration + a broken node runtime must read as
-    off/unconfigured with the cookie fix on bird — never a configured-but-
-    broken error carrying a node prescription."""
-
-    def test_x_rolls_up_off_with_cookie_prescription(self):
-        report = _build({}, probe_map={"node": health.BROKEN})
-        record = report["sources"]["x"]
-        self.assertEqual("off", record["tier"])
-        self.assertEqual("unconfigured", record["status"])
-        bird = next(b for b in record["backends"] if b["name"] == "bird")
-        self.assertEqual("missing", bird["status"])
-        self.assertIn("cookie", (bird["detail"] + bird["fix"]).lower())
-        self.assertNotIn("node", bird["fix"].lower())
-
-
-class CookieBackedXReadiness(unittest.TestCase):
-    """U2: when bird is installed and FROM_BROWSER will authenticate X at run
-    time, doctor reports X as Ready (not Off) with an honest, unverified note -
-    matching the real run behavior where browser cookies serve X fine even
-    though diagnose loads config in plan_only mode."""
-
-    def test_x_ready_when_bird_installed_and_from_browser(self):
-        with _Hermetic(), mock.patch("lib.bird_x.is_bird_installed", return_value=True):
-            report = doctor.build_report({"FROM_BROWSER": "auto"})
-        record = report["sources"]["x"]
-        self.assertEqual("ok", record["tier"])
-        self.assertEqual("ok", record["status"])
-        note = record["note"].lower()
-        self.assertIn("browser cookies", note)
-        self.assertIn("not verified", note)
-        self.assertIn("xai_api_key", note)
-
-    def test_x_stays_off_when_bird_installed_but_no_consent(self):
-        # bird installed but FROM_BROWSER=off -> no cookie path -> genuinely off.
-        with _Hermetic(), mock.patch("lib.bird_x.is_bird_installed", return_value=True):
-            report = doctor.build_report({"FROM_BROWSER": "off"})
-        record = report["sources"]["x"]
-        self.assertEqual("off", record["tier"])
-        self.assertEqual("unconfigured", record["status"])
-
-    def test_x_stays_off_when_consent_but_bird_missing(self):
-        # FROM_BROWSER set but bird not installed -> no runtime path -> off.
-        report = _build({"FROM_BROWSER": "auto"})
-        record = report["sources"]["x"]
-        self.assertEqual("off", record["tier"])
-        self.assertEqual("unconfigured", record["status"])
 
 
 class LibraryDoctorLine(unittest.TestCase):
@@ -336,7 +269,7 @@ class JsonShape(unittest.TestCase):
             )
 
     def test_chained_sources_expose_backends_and_mode(self):
-        for name in ("x", "youtube", "web"):
+        for name in ("youtube", "web"):
             record = self.report["sources"][name]
             self.assertEqual("alternative", record["mode"], name)
             self.assertIsInstance(record["backends"], list, name)
@@ -404,48 +337,6 @@ class ProbeFailureIsolation(unittest.TestCase):
         record = report["sources"]["youtube"]
         self.assertEqual("broken", record["status"])
         self.assertEqual("error", record["tier"])
-
-    def test_chained_failure_requires_names_the_failed_backend(self):
-        """F4: chain[0] merely MISSING while a later backend is BROKEN ->
-        the record's requires is the BROKEN backend's (mirroring how the
-        OK/WARN branches use the active finding), never chain[0]'s."""
-        config = {
-            "AUTH_TOKEN": "dummy-auth-token-secret-000",
-            "CT0": "dummy-ct0-secret-000",
-        }
-        with _Hermetic(probe_map={"node": health.BROKEN}), \
-             mock.patch("lib.bird_x.is_bird_installed", return_value=True):
-            report = doctor.build_report(dict(config))
-        record = report["sources"]["x"]
-        self.assertEqual("broken", record["status"])
-        self.assertEqual("error", record["tier"])
-        by_name = {b["name"]: b for b in record["backends"]}
-        # chain[0] (xai) is merely unconfigured; bird is the broken one.
-        self.assertEqual("missing", by_name["xai"]["status"])
-        self.assertEqual("broken", by_name["bird"]["status"])
-        self.assertEqual(by_name["bird"]["requires"], record["requires"])
-        self.assertNotEqual(by_name["xai"]["requires"], record["requires"])
-
-    def test_source_exception_is_isolated(self):
-        real_resolve = backends.resolve
-
-        def exploding(source, config, pin=None):
-            if source == "x":
-                raise RuntimeError("probe blew up")
-            return real_resolve(source, config, pin)
-
-        with _Hermetic(), mock.patch("lib.backends.resolve", exploding):
-            report = doctor.build_report({})
-        record = report["sources"]["x"]
-        self.assertEqual("error", record["status"])
-        self.assertEqual("error", record["tier"])
-        self.assertIn("RuntimeError", record["detail"])
-        # The rest of the report survives.
-        self.assertEqual("ok", report["sources"]["reddit"]["tier"])
-        self.assertEqual(set(doctor.SOURCE_ORDER), set(report["sources"].keys()))
-        # And the whole report still renders as text and JSON.
-        self.assertTrue(doctor.render_text(report))
-        json.loads(doctor.render_json(report))
 
 
 class NoSecretsInvariant(unittest.TestCase):
@@ -1106,12 +997,6 @@ class BackupAndCommentLanes(unittest.TestCase):
         self.assertTrue(on["sources"]["youtube"]["comments"]["enabled"])
         off = _build({"SCRAPECREATORS_API_KEY": "dummy-sc-secret-000"})
         self.assertFalse(off["sources"]["youtube"]["comments"]["enabled"])
-
-    def test_x_dual_path_note(self):
-        keyed = _build({"XAI_API_KEY": "dummy-xai-secret-000"})
-        note = keyed["sources"]["x"]["backups"][0]["note"]
-        self.assertIn("XAI_API_KEY", note)
-        self.assertTrue(keyed["sources"]["x"]["backups"][0]["armed"])
 
     def test_sub_lanes_in_json(self):
         report = _build({"SCRAPECREATORS_API_KEY": "dummy-sc-secret-000"})

@@ -29,12 +29,11 @@ def is_first_run(config: Dict[str, Any]) -> bool:
     return not config.get("SETUP_COMPLETE")
 
 
-_WELCOME_TEXT = """Welcome to /last30days! I research any topic across Reddit, X, YouTube, TikTok, Digg, arXiv, Techmeme, HN, Polymarket & more - what people actually said in the last 30 days. Let's get you set up (~30s).
+_WELCOME_TEXT = """Welcome to /last30days! I research any topic across Reddit, YouTube, TikTok, Digg, arXiv, Techmeme, HN, Polymarket & more - what people actually said in the last 30 days. Let's get you set up (~30s).
 
 I synthesize what people are actually saying right now across social, news, and market sources.
 
 Auto setup gives you the core sources free in about 30 seconds:
-- X/Twitter - reads your browser cookies to authenticate (read live each run, never saved to disk). I check Chrome first (fastest - a one-time macOS Keychain prompt may appear; click Always Allow), then Firefox and Safari.
 - Reddit with comments - public JSON, no API key needed.
 - YouTube search + transcripts - installs yt-dlp (open source, 190K+ GitHub stars).
 - Digg - trending news, GitHub stars, and pipeline feeds - installs the free, keyless Digg CLI.
@@ -546,7 +545,7 @@ def get_setup_status_text(results: Dict[str, Any]) -> str:
         for source, browser in cookies_found.items():
             lines.append(f"  - {source.upper()} cookies found in {browser}")
     else:
-        lines.append("  - No browser cookies found for X/Twitter")
+        lines.append("  - No optional browser-backed sources configured")
 
     ytdlp_action = results.get("ytdlp_action", "")
     if ytdlp_action == "installed":
@@ -643,7 +642,6 @@ _OPENCLAW_KEY_NAMES = [
     "EXA_API_KEY",
     "SERPER_API_KEY",
     "OPENAI_API_KEY",
-    "AUTH_TOKEN",
 ]
 
 
@@ -663,16 +661,7 @@ def run_openclaw_setup(config: Dict[str, Any]) -> Dict[str, Any]:
     keys: Dict[str, bool] = {}
     for key_name in _OPENCLAW_KEY_NAMES:
         short = key_name.lower().replace("_api_key", "").replace("_key", "").replace("_token", "")
-        # Normalize: AUTH_TOKEN -> auth, SCRAPECREATORS_API_KEY -> scrapecreators
         keys[short] = bool(config.get(key_name))
-
-    # Determine x_method
-    if config.get("XAI_API_KEY"):
-        x_method: Optional[str] = "xai"
-    elif config.get("AUTH_TOKEN") and config.get("CT0"):
-        x_method = "cookies"
-    else:
-        x_method = None
 
     payload: Dict[str, Any] = {
         "yt_dlp": yt_dlp,
@@ -681,7 +670,6 @@ def run_openclaw_setup(config: Dict[str, Any]) -> Dict[str, Any]:
         "digg_cli": digg_installed,
         "digg_action": digg_action,
         "keys": keys,
-        "x_method": x_method,
     }
     if digg_path:
         payload["digg_path"] = digg_path

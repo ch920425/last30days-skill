@@ -11,18 +11,6 @@ from unittest import mock
 from lib import pipeline, rerank, schema
 
 
-def _x_item(item_id: str, text: str, likes: int, *, date: str = "2026-07-09") -> dict:
-    return {
-        "id": item_id,
-        "text": text,
-        "url": f"https://x.com/example/status/{item_id}",
-        "author_handle": "example",
-        "date": date,
-        "engagement": {"likes": likes, "reposts": 0, "replies": 0, "quotes": 0},
-        "relevance": 0.9,
-    }
-
-
 def _hn_item(item_id: str, title: str, points: int, comments: int, *, date: str = "2026-07-09") -> dict:
     return {
         "id": item_id,
@@ -67,15 +55,15 @@ def _run_discover_with(items_by_source: dict[str, list[dict]], **kwargs) -> sche
 
 
 def test_junk_corpus_returns_nothing_solid_not_ranked_noise():
-    """THE regression: five single-source 1-like tweets (the 'sports' corpus)
+    """THE regression: five single-source one-point items (the 'sports' corpus)
     must produce an honest empty result, never a ranked junk list."""
     report = _run_discover_with({
-        "x": [
-            _x_item("junk1", "Wii Sports nostalgia thread about sports", 1),
-            _x_item("junk2", "kids travel sports burnout post", 1),
-            _x_item("junk3", "motorsports vs stick and ball sports", 1),
-            _x_item("junk4", "midjourney skateboarder sports prompt", 1),
-            _x_item("junk5", "manga review mentioning sports matches", 1),
+        "hackernews": [
+            _hn_item("junk1", "Wii Sports nostalgia thread about sports", 1, 0),
+            _hn_item("junk2", "kids travel sports burnout post", 1, 0),
+            _hn_item("junk3", "motorsports vs stick and ball sports", 1, 0),
+            _hn_item("junk4", "midjourney skateboarder sports prompt", 1, 0),
+            _hn_item("junk5", "manga review mentioning sports matches", 1, 0),
         ],
     })
 
@@ -113,8 +101,10 @@ def test_mixed_corpus_emits_only_floor_clearing_topics():
     """Strong multi-source story ranks; 1-like junk is silently dropped."""
     report = _run_discover_with({
         "hackernews": [_hn_item("story1", "NBA finals collapse shocks sports world", 450, 200)],
-        "reddit": [_reddit_item("story1r", "NBA finals collapse shocks sports world", 900, 400)],
-        "x": [_x_item("junkA", "random sports meme", 1)],
+        "reddit": [
+            _reddit_item("story1r", "NBA finals collapse shocks sports world", 900, 400),
+            _reddit_item("junkA", "random sports meme", 1, 0),
+        ],
     })
 
     assert report.outcome == "ok"
@@ -129,7 +119,7 @@ def test_mixed_corpus_emits_only_floor_clearing_topics():
 def test_enriched_evidence_is_judged_not_seed_evidence():
     """With enrich=True, a topic whose seed was thin but whose full-pipeline
     corpus is rich clears the floor on the enriched evidence."""
-    seed = {"x": [_x_item("seed1", "quiet sports story gathering steam", 40)]}
+    seed = {"reddit": [_reddit_item("seed1", "quiet sports story gathering steam", 40, 2)]}
 
     def fake_run(*, topic, **_kwargs):
         items = {

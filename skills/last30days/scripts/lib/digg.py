@@ -1,9 +1,8 @@
-"""Digg AI 1000 source for last30days.
+"""Digg AI 1000 cluster source for Last30Days.
 
 Shells out to ``digg-pp-cli`` (read-only, no auth required) to surface
-clustered stories curated from ~1000 high-signal AI accounts on X. Each
-cluster carries a published TLDR, a curatorial rank, and a list of X
-posts that can be fetched as inline quotes.
+curated story clusters. Each cluster carries a published TLDR and curatorial
+rank. Post-level social enrichment is intentionally not requested.
 
 Activation gate: this source is only available when ``digg-pp-cli`` is
 on PATH. ``pipeline.available_sources`` checks ``shutil.which`` before
@@ -11,9 +10,6 @@ including ``digg`` in the source list. The functions below also detect
 the missing-binary case as a defensive fallback.
 
 Primary path: ``digg-pp-cli search <topic> --since 30d --agent --limit N``.
-Optional enrichment: ``digg-pp-cli posts <clusterUrlId> --agent --by rank
---limit M`` for the top K clusters in default/deep depth, attaching the
-top-ranked X posts to each cluster's ``posts`` field.
 """
 
 from __future__ import annotations
@@ -22,7 +18,6 @@ import json
 import shutil
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 from . import log, subproc
 from .relevance import token_overlap_relevance
@@ -37,20 +32,8 @@ DEPTH_CONFIG = {
     "deep": 40,
 }
 
-# How many top-ranked clusters get post enrichment, per depth. Quick mode
-# skips enrichment to keep latency low (clusters already carry a TLDR).
-ENRICH_CONFIG = {
-    "quick": 0,
-    "default": 3,
-    "deep": 5,
-}
-
-# X posts pulled per enriched cluster. Matches the 5-comment cap used by
-# Reddit/HN/YouTube/TikTok/GitHub enrichment.
-POSTS_PER_CLUSTER = 5
-
 SEARCH_TIMEOUT = 30
-POSTS_TIMEOUT = 15
+
 
 
 def _log(msg: str) -> None:
@@ -119,18 +102,6 @@ def _build_search_args(query: str, limit: int) -> List[str]:
         str(limit),
     ]
 
-
-def _build_posts_args(cluster_url_id: str, posts_per: int) -> List[str]:
-    return [
-        CLI_BIN,
-        "posts",
-        cluster_url_id,
-        "--agent",
-        "--by",
-        "rank",
-        "--limit",
-        str(posts_per),
-    ]
 
 
 def _run_cli(cmd: List[str], timeout: int) -> Dict[str, Any]:
@@ -294,147 +265,4 @@ def parse_digg_response(
             }
         )
 
-    return items
-
-
-def _is_safe_http_url(url: str) -> bool:
-    """True iff ``url`` parses with an http or https scheme.
-
-    Used to reject upstream-supplied post URLs whose scheme would be
-    dangerous in a rendered ``<a href>`` (``javascript:``, ``data:``,
-    ``file:``, ``vbscript:``, ``about:``).
-    """
-    try:
-        scheme = urlparse(url).scheme.lower()
-    except ValueError:
-        return False
-    return scheme in ("http", "https")
-
-
-def _parse_post(raw_post: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Reduce a digg post payload into the small dict render uses.
-
-    We deliberately keep this minimal: an inline quote needs the author
-    handle, the body, the post type, and the X URL.
-    """
-    if not isinstance(raw_post, dict):
-        return None
-    body = str(raw_post.get("body") or "").strip()
-    if not body:
-        return None
-    author = raw_post.get("author") or {}
-    if not isinstance(author, dict):
-        author = {}
-    username = str(author.get("username") or "").strip()
-    if not username:
-        return None
-    x_url = str(raw_post.get("xUrl") or "").strip()
-    if not x_url:
-        return None
-    if not _is_safe_http_url(x_url):
-        # Security-class drop: an upstream-supplied URL with a dangerous
-        # scheme. Force tty_only=False so the rejection is visible in
-        # non-interactive runs (Claude Code), which is the actual attack
-        # surface — the default tty_only=True would suppress it there.
-        log.source_log(
-            "Digg",
-            f"dropped post with unsafe xUrl scheme: {x_url!r}",
-            tty_only=False,
-        )
-        return None
-    return {
-        "username": username,
-        "display_name": str(author.get("display_name") or "").strip() or username,
-        "category": str(author.get("category") or "").strip(),
-        "rank": author.get("rank"),
-        "body": body,
-        "post_type": str(raw_post.get("post_type") or "tweet").strip(),
-        "x_url": x_url,
-        "posted_at": raw_post.get("posted_at"),
-    }
-
-
-def fetch_top_posts(cluster_url_id: str, posts_per: int = POSTS_PER_CLUSTER) -> List[Dict[str, Any]]:
-    """Fetch top-ranked X posts attached to a cluster.
-
-    Returns an empty list on any failure (timeout, missing cluster, JSON
-    error). Never raises.
-    """
-    if posts_per <= 0:
-        return []
-    cmd = _build_posts_args(cluster_url_id, posts_per)
-    response = _run_cli(cmd, timeout=POSTS_TIMEOUT)
-    raw = response.get("results") or []
-    out: List[Dict[str, Any]] = []
-    for entry in raw:
-        post = _parse_post(entry)
-        if post is not None:
-            out.append(post)
-    return out
-
-
-def enrich_with_top_posts(
-    items: List[Dict[str, Any]],
-    top_k: int = 3,
-    posts_per: int = POSTS_PER_CLUSTER,
-) -> List[Dict[str, Any]]:
-    """Attach top X posts to the first ``top_k`` clusters by Digg rank order.
-
-    Mutates and returns the same list. Items that already have posts, or
-    whose ``postCount`` is 0, are skipped.
-    """
-    if top_k <= 0 or posts_per <= 0:
-        return items
-    enriched = 0
-    for item in items:
-        if enriched >= top_k:
-            break
-        if item.get("posts"):
-            continue
-        engagement = item.get("engagement") or {}
-        if not engagement.get("postCount"):
-            continue
-        cluster_url_id = item.get("id")
-        if not cluster_url_id:
-            continue
-        posts = fetch_top_posts(str(cluster_url_id), posts_per=posts_per)
-        item["posts"] = posts
-        enriched += 1
-    if enriched:
-        _log(f"enriched {enriched} clusters with X posts")
-    return items
-
-
-def enrich_source_items(items: list, top_k: int = 3, posts_per: int = POSTS_PER_CLUSTER) -> list:
-    """Attach top X posts to the first ``top_k`` SourceItems that survived dedupe.
-
-    Reads ``metadata['clusterUrlId']`` and writes ``metadata['posts']`` in
-    place. Skips items that already carry a non-empty ``metadata['posts']``,
-    items whose engagement ``postCount`` is 0, and items whose source is not
-    'digg'. Designed to run from `_finalize_items_by_source` so enrichment
-    is spent on the items the brief actually shows.
-    """
-    if top_k <= 0 or posts_per <= 0:
-        return items
-    enriched = 0
-    for item in items:
-        if enriched >= top_k:
-            break
-        if getattr(item, "source", None) != "digg":
-            continue
-        metadata = getattr(item, "metadata", None) or {}
-        if metadata.get("posts"):
-            continue
-        engagement = getattr(item, "engagement", None) or {}
-        if not engagement.get("postCount"):
-            continue
-        cluster_url_id = metadata.get("clusterUrlId") or item.item_id
-        if not cluster_url_id:
-            continue
-        posts = fetch_top_posts(str(cluster_url_id), posts_per=posts_per)
-        if posts:
-            metadata["posts"] = posts
-            enriched += 1
-    if enriched:
-        _log(f"post-dedupe enriched {enriched} clusters with X posts")
     return items

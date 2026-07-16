@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from lib import bird_x, health, http, jobs, pipeline, reddit, render, schema, youtube_yt
+from lib import health, http, jobs, pipeline, reddit, render, schema, youtube_yt
 
 
 def _report(*, source_status=None, items_by_source=None, errors_by_source=None):
@@ -71,7 +71,6 @@ def test_http_wrapper_classifies_dns_failure(mock_urlopen, _mock_sleep):
 
 
 def test_source_specific_text_failures_are_mapped():
-    assert bird_x.classify_run_failure("likely Twitter anti-bot interstitial") == schema.SCHEMA_DRIFT
     assert reddit.classify_run_failure("blocked by Reddit interstitial") == schema.RATE_LIMITED
     assert youtube_yt.classify_run_failure("Sign in to confirm you're not a bot") == schema.RATE_LIMITED
 
@@ -240,23 +239,23 @@ def test_pipeline_records_clean_empty_source_as_no_results():
                 "label": "primary",
                 "search_query": "test topic",
                 "ranking_query": "test topic",
-                "sources": ["x"],
+                "sources": ["reddit"],
             }
         ],
-        "source_weights": {"x": 1.0},
+        "source_weights": {"reddit": 1.0},
     }
     with patch("lib.pipeline._retrieve_stream", return_value=([], {})):
         report = pipeline.run(
             topic="test topic",
             config={"LAST30DAYS_REASONING_PROVIDER": "gemini"},
             depth="quick",
-            requested_sources=["x"],
+            requested_sources=["reddit"],
             mock=True,
             external_plan=plan,
         )
 
-    assert report.source_status["x"].state == schema.NO_RESULTS
-    assert "x" not in report.errors_by_source
+    assert report.source_status["reddit"].state == schema.NO_RESULTS
+    assert "reddit" not in report.errors_by_source
 
 
 def test_pipeline_preserves_typed_http_failure():
@@ -269,10 +268,10 @@ def test_pipeline_preserves_typed_http_failure():
                 "label": "primary",
                 "search_query": "test topic",
                 "ranking_query": "test topic",
-                "sources": ["x"],
+                "sources": ["reddit"],
             }
         ],
-        "source_weights": {"x": 1.0},
+        "source_weights": {"reddit": 1.0},
     }
     failure = http.HTTPError("HTTP 429: Too Many Requests", status_code=429)
     with patch("lib.pipeline._retrieve_stream", side_effect=failure):
@@ -280,14 +279,14 @@ def test_pipeline_preserves_typed_http_failure():
             topic="test topic",
             config={"LAST30DAYS_REASONING_PROVIDER": "gemini"},
             depth="quick",
-            requested_sources=["x"],
+            requested_sources=["reddit"],
             mock=True,
             external_plan=plan,
         )
 
-    assert report.source_status["x"].state == schema.RATE_LIMITED
-    assert report.source_status["x"].items_returned == 0
-    assert "x" in report.errors_by_source
+    assert report.source_status["reddit"].state == schema.RATE_LIMITED
+    assert report.source_status["reddit"].items_returned == 0
+    assert "reddit" in report.errors_by_source
 
 
 def test_footer_and_synthesis_note_surface_failed_source():

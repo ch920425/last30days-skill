@@ -31,20 +31,11 @@ from lib import doctor, health
 ROOT = Path(__file__).resolve().parents[1]
 SKILL_MD = ROOT / "skills" / "last30days" / "SKILL.md"
 
-BIRD_STATUS_OFF = {
-    "installed": False,
-    "authenticated": False,
-    "username": None,
-    "can_install": True,
-}
-
 # Obvious dummies only (repo security hygiene).
 FAKE_SECRETS = {
     "SCRAPECREATORS_API_KEY": "dummy-sc-secret-000",
     "XAI_API_KEY": "dummy-xai-secret-000",
     "BRAVE_API_KEY": "dummy-brave-secret-000",
-    "AUTH_TOKEN": "dummy-auth-token-secret-000",
-    "CT0": "dummy-ct0-secret-000",
     "BSKY_HANDLE": "dummy.example.social",
     "BSKY_APP_PASSWORD": "dummy-bsky-secret-000",
     "TRUTHSOCIAL_TOKEN": "dummy-truth-secret-000",
@@ -76,22 +67,6 @@ class _Hermetic:
         self.probe_spy = mock.Mock(side_effect=probe or _fake_probe)
         self._patches = [
             mock.patch("lib.health.probe_dependency", self.probe_spy),
-            mock.patch("lib.bird_x.is_bird_installed", return_value=False),
-            mock.patch("lib.bird_x.set_credentials", lambda *a, **k: None),
-            mock.patch("lib.bird_x.get_bird_status", return_value=dict(BIRD_STATUS_OFF)),
-            # Doctor path is local-only for xurl: the live `xurl whoami`
-            # network check must never run (no-network guarantee).
-            mock.patch(
-                "lib.xurl_x.is_available",
-                side_effect=AssertionError(
-                    "doctor path ran the live `xurl whoami` network check"
-                ),
-            ),
-            mock.patch("lib.xurl_x.has_stored_auth", return_value=False),
-            mock.patch(
-                "lib.xurl_x.stored_auth_status",
-                return_value=("missing", "no token store at ~/.xurl"),
-            ),
             mock.patch("lib.backends.which", lambda name: None),
         ]
 
@@ -463,7 +438,7 @@ class FingerprintInvalidation(_CacheDirCase):
     def test_pin_change_invalidates(self):
         self.write_cache(seconds_ago=1)
         rc, out, probe_spy = self.run_doctor(
-            {"LAST30DAYS_X_BACKEND": "bird"}, cached=True
+            {"LAST30DAYS_REDDIT_BACKEND": "scrapecreators"}, cached=True
         )
         self.assertNotIn("cached-sentinel-report", out)
         self.assertTrue(probe_spy.called, "pin change must invalidate cache")
@@ -658,7 +633,6 @@ class DoctorSkillContract(unittest.TestCase):
             "doctor --cached",
             "doctor-cache.json",
             "LAST30DAYS_DOCTOR_TTL",
-            "LAST30DAYS_X_BACKEND",
             "LAST30DAYS_REDDIT_BACKEND",
             "--web-backend",
         ):

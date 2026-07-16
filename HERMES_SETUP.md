@@ -47,7 +47,7 @@ last30days "AI news" --days=7 --deep
 On first run, the skill will guide you through setup:
 
 1. **Auto setup** (~30 seconds)
-   - Scans browser cookies for X/Twitter
+   - Never reads X/Twitter browser cookies; X is handled by the separate bearer-only API v2 skill
    - Checks/installs yt-dlp for YouTube
    - Best-effort install of `digg-pp-cli` for Digg AI-news clusters (via `@mvanhorn/printing-press-library`; binary lands in `$HOME/.local/bin` — ensure your Hermes gateway PATH includes it, or Digg stays off even after install)
    - Configures free sources (Reddit, HN, Polymarket)
@@ -58,7 +58,7 @@ On first run, the skill will guide you through setup:
    - Sign up at scrapecreators.com
 
 3. **Optional: API Keys**
-   - XAI_API_KEY for X/Twitter (alternative to browser cookies)
+   - XAI_API_KEY for optional reasoning only
    - BRAVE_API_KEY for web search
 
 ## Available Sources
@@ -71,7 +71,7 @@ On first run, the skill will guide you through setup:
 - **Digg** - AI-news story clusters (requires `digg-pp-cli` on the agent PATH; auto-installed to `$HOME/.local/bin` during setup when `npx` is available)
 
 ### Requires API Key
-- **X/Twitter** - xAI API key or browser cookies
+- **X/Twitter** - separate bearer-only API v2 skill; local Grok CLI fallback
 - **TikTok** - ScrapeCreators API
 - **Instagram** - ScrapeCreators API
 - **Web Search** - Brave Search API

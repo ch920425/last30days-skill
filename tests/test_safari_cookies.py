@@ -96,57 +96,57 @@ def _build_binary_cookies_file(pages: list[bytes]) -> bytes:
 @pytest.fixture
 
 
-def x_cookies_file() -> bytes:
-    """Build a minimal valid binary cookies file with .x.com cookies."""
-    rec1 = _build_cookie_record(".x.com", "auth_token", "test_auth_abc123")
-    rec2 = _build_cookie_record(".x.com", "ct0", "test_ct0_xyz789")
+def reddit_cookies_file() -> bytes:
+    """Build a minimal valid binary cookies file with .reddit.com cookies."""
+    rec1 = _build_cookie_record(".reddit.com", "reddit_session", "test_auth_abc123")
+    rec2 = _build_cookie_record(".reddit.com", "csrf_token", "test_csrf_token_xyz789")
     rec3 = _build_cookie_record(".google.com", "NID", "google_nid_value")
     page = _build_page([rec1, rec2, rec3])
     return _build_binary_cookies_file([page])
 
 
 class TestParseValidCookies:
-    def test_extracts_matching_cookies(self, x_cookies_file: bytes):
-        result = _parse_binary_cookies(x_cookies_file, "x.com", ["auth_token", "ct0"])
+    def test_extracts_matching_cookies(self, reddit_cookies_file: bytes):
+        result = _parse_binary_cookies(reddit_cookies_file, "reddit.com", ["reddit_session", "csrf_token"])
         assert result is not None
-        assert result["auth_token"] == "test_auth_abc123"
-        assert result["ct0"] == "test_ct0_xyz789"
+        assert result["reddit_session"] == "test_auth_abc123"
+        assert result["csrf_token"] == "test_csrf_token_xyz789"
 
-    def test_ignores_other_domains(self, x_cookies_file: bytes):
-        result = _parse_binary_cookies(x_cookies_file, "google.com", ["auth_token"])
+    def test_ignores_other_domains(self, reddit_cookies_file: bytes):
+        result = _parse_binary_cookies(reddit_cookies_file, "google.com", ["reddit_session"])
         assert result is None
 
-    def test_partial_match_returns_found_only(self, x_cookies_file: bytes):
+    def test_partial_match_returns_found_only(self, reddit_cookies_file: bytes):
         result = _parse_binary_cookies(
-            x_cookies_file, "x.com", ["auth_token", "nonexistent"]
+            reddit_cookies_file, "reddit.com", ["reddit_session", "nonexistent"]
         )
         assert result is not None
-        assert result["auth_token"] == "test_auth_abc123"
+        assert result["reddit_session"] == "test_auth_abc123"
         assert "nonexistent" not in result
 
-    def test_no_matching_cookie_names(self, x_cookies_file: bytes):
-        result = _parse_binary_cookies(x_cookies_file, "x.com", ["bogus"])
+    def test_no_matching_cookie_names(self, reddit_cookies_file: bytes):
+        result = _parse_binary_cookies(reddit_cookies_file, "reddit.com", ["bogus"])
         assert result is None
 
-    def test_domain_substring_match_with_leading_dot(self, x_cookies_file: bytes):
-        """Domain '.x.com' in cookie should match search for 'x.com'."""
-        result = _parse_binary_cookies(x_cookies_file, "x.com", ["auth_token"])
+    def test_domain_substring_match_with_leading_dot(self, reddit_cookies_file: bytes):
+        """Domain '.reddit.com' in cookie should match search for 'reddit.com'."""
+        result = _parse_binary_cookies(reddit_cookies_file, "reddit.com", ["reddit_session"])
         assert result is not None
-        assert result["auth_token"] == "test_auth_abc123"
+        assert result["reddit_session"] == "test_auth_abc123"
 
 
 class TestMultiplePages:
     def test_cookies_across_pages(self):
-        rec1 = _build_cookie_record(".x.com", "auth_token", "page1_auth")
-        rec2 = _build_cookie_record(".x.com", "ct0", "page2_ct0")
+        rec1 = _build_cookie_record(".reddit.com", "reddit_session", "page1_auth")
+        rec2 = _build_cookie_record(".reddit.com", "csrf_token", "page2_csrf_token")
         page1 = _build_page([rec1])
         page2 = _build_page([rec2])
         data = _build_binary_cookies_file([page1, page2])
 
-        result = _parse_binary_cookies(data, "x.com", ["auth_token", "ct0"])
+        result = _parse_binary_cookies(data, "reddit.com", ["reddit_session", "csrf_token"])
         assert result is not None
-        assert result["auth_token"] == "page1_auth"
-        assert result["ct0"] == "page2_ct0"
+        assert result["reddit_session"] == "page1_auth"
+        assert result["csrf_token"] == "page2_csrf_token"
 
 
 class TestErrorPaths:
@@ -156,11 +156,11 @@ class TestErrorPaths:
         ), patch("lib.safari_cookies.sys") as mock_sys:
             mock_sys.platform = "darwin"
             mock_sys.stderr = sys.stderr
-            result = extract_safari_cookies_macos("x.com", ["auth_token"])
+            result = extract_safari_cookies_macos("reddit.com", ["reddit_session"])
         assert result is None
 
     def test_prefers_sandboxed_safari_cookie_path(
-        self, tmp_path: Path, x_cookies_file: bytes
+        self, tmp_path: Path, reddit_cookies_file: bytes
     ):
         sandbox_dir = (
             tmp_path
@@ -172,12 +172,12 @@ class TestErrorPaths:
             / "Cookies"
         )
         sandbox_dir.mkdir(parents=True)
-        (sandbox_dir / "Cookies.binarycookies").write_bytes(x_cookies_file)
+        (sandbox_dir / "Cookies.binarycookies").write_bytes(reddit_cookies_file)
 
         legacy_dir = tmp_path / "Library" / "Cookies"
         legacy_dir.mkdir(parents=True)
         legacy_data = _build_binary_cookies_file(
-            [_build_page([_build_cookie_record(".x.com", "auth_token", "legacy")])]
+            [_build_page([_build_cookie_record(".reddit.com", "reddit_session", "legacy")])]
         )
         (legacy_dir / "Cookies.binarycookies").write_bytes(legacy_data)
 
@@ -186,18 +186,18 @@ class TestErrorPaths:
         ), patch("lib.safari_cookies.sys") as mock_sys:
             mock_sys.platform = "darwin"
             mock_sys.stderr = sys.stderr
-            result = extract_safari_cookies_macos("x.com", ["auth_token", "ct0"])
+            result = extract_safari_cookies_macos("reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is not None
-        assert result["auth_token"] == "test_auth_abc123"
-        assert result["ct0"] == "test_ct0_xyz789"
+        assert result["reddit_session"] == "test_auth_abc123"
+        assert result["csrf_token"] == "test_csrf_token_xyz789"
 
     def test_falls_back_to_legacy_safari_cookie_path(self, tmp_path: Path):
         # Sandboxed path is intentionally NOT created — only the legacy path exists.
         legacy_dir = tmp_path / "Library" / "Cookies"
         legacy_dir.mkdir(parents=True)
         legacy_data = _build_binary_cookies_file(
-            [_build_page([_build_cookie_record(".x.com", "auth_token", "legacy_auth")])]
+            [_build_page([_build_cookie_record(".reddit.com", "reddit_session", "legacy_auth")])]
         )
         (legacy_dir / "Cookies.binarycookies").write_bytes(legacy_data)
 
@@ -218,10 +218,10 @@ class TestErrorPaths:
         ), patch("lib.safari_cookies.sys") as mock_sys:
             mock_sys.platform = "darwin"
             mock_sys.stderr = sys.stderr
-            result = extract_safari_cookies_macos("x.com", ["auth_token"])
+            result = extract_safari_cookies_macos("reddit.com", ["reddit_session"])
 
         assert result is not None
-        assert result["auth_token"] == "legacy_auth"
+        assert result["reddit_session"] == "legacy_auth"
 
     def test_permission_denied(self, tmp_path: Path, capsys):
         cookie_dir = (
@@ -244,39 +244,39 @@ class TestErrorPaths:
         ):
             mock_sys.platform = "darwin"
             mock_sys.stderr = sys.stderr
-            result = extract_safari_cookies_macos("x.com", ["auth_token"])
+            result = extract_safari_cookies_macos("reddit.com", ["reddit_session"])
         assert result is None
         captured = capsys.readouterr()
         assert "Full Disk Access" in captured.err
 
     def test_truncated_magic_only(self):
-        result = _parse_binary_cookies(b"cook", "x.com", ["auth_token"])
+        result = _parse_binary_cookies(b"cook", "reddit.com", ["reddit_session"])
         assert result is None
 
     def test_empty_file(self):
-        result = _parse_binary_cookies(b"", "x.com", ["auth_token"])
+        result = _parse_binary_cookies(b"", "reddit.com", ["reddit_session"])
         assert result is None
 
     def test_wrong_magic(self):
-        result = _parse_binary_cookies(b"notcook!", "x.com", ["auth_token"])
+        result = _parse_binary_cookies(b"notcook!", "reddit.com", ["reddit_session"])
         assert result is None
 
     def test_truncated_page_sizes(self):
         # Header says 5 pages but data is too short
         data = b"cook" + struct.pack(">I", 5) + b"\x00" * 4
-        result = _parse_binary_cookies(data, "x.com", ["auth_token"])
+        result = _parse_binary_cookies(data, "reddit.com", ["reddit_session"])
         assert result is None
 
     def test_truncated_page_data(self):
         # Valid header with 1 page of size 1000, but no actual page data
         data = b"cook" + struct.pack(">I", 1) + struct.pack(">I", 1000)
-        result = _parse_binary_cookies(data, "x.com", ["auth_token"])
+        result = _parse_binary_cookies(data, "reddit.com", ["reddit_session"])
         assert result is None
 
     def test_non_darwin_returns_none(self):
         with patch("lib.safari_cookies.sys") as mock_sys:
             mock_sys.platform = "linux"
-            result = extract_safari_cookies_macos("x.com", ["auth_token"])
+            result = extract_safari_cookies_macos("reddit.com", ["reddit_session"])
         assert result is None
 
     def test_garbage_data_no_crash(self):
@@ -285,6 +285,6 @@ class TestErrorPaths:
 
         data = b"cook" + os.urandom(200)
         # Should not raise — may return None or a dict
-        result = _parse_binary_cookies(data, "x.com", ["auth_token"])
+        result = _parse_binary_cookies(data, "reddit.com", ["reddit_session"])
         # Just verify no exception; result is either None or dict
         assert result is None or isinstance(result, dict)

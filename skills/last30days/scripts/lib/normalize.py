@@ -38,7 +38,6 @@ def normalize_source_items(
     source = source.lower()
     normalizers = {
         "reddit": _normalize_reddit,
-        "x": _normalize_x,
         "youtube": _normalize_youtube,
         "tiktok": lambda s, i, idx, fd, td: _normalize_shortform_video(s, i, idx, fd, td, "TK", "TikTok post"),
         "instagram": lambda s, i, idx, fd, td: _normalize_shortform_video(s, i, idx, fd, td, "IG", "Instagram reel"),
@@ -48,7 +47,6 @@ def normalize_source_items(
         "bluesky": lambda s, i, idx, fd, td: _normalize_microblog(s, i, idx, fd, td, "BS", "Bluesky post"),
         "truthsocial": lambda s, i, idx, fd, td: _normalize_microblog(s, i, idx, fd, td, "TS", "Truth Social post"),
         "threads": lambda s, i, idx, fd, td: _normalize_microblog(s, i, idx, fd, td, "TH", "Threads post"),
-        "xquik": _normalize_x,
         "pinterest": _normalize_pinterest,
         "polymarket": _normalize_polymarket,
         "digg": _normalize_digg,
@@ -290,31 +288,6 @@ def _normalize_reddit(
     )
 
 
-def _normalize_x(
-    source: str,
-    item: dict[str, Any],
-    index: int,
-    from_date: str,
-    to_date: str,
-) -> schema.SourceItem:
-    text = str(item.get("text") or "").strip()
-    mentioned = item.get("mentioned_handles") or []
-    return _source_item(
-        item_id=str(item.get("id") or f"X{index + 1}"),
-        source=source,
-        title=text[:140] or f"X post {index + 1}",
-        body=text,
-        url=str(item.get("url") or ""),
-        author=str(item.get("author_handle") or "").lstrip("@"),
-        published_at=item.get("date"),
-        date_confidence=_date_confidence(item, from_date, to_date),
-        engagement=item.get("engagement") or {},
-        relevance_hint=item.get("relevance", 0.5),
-        why_relevant=str(item.get("why_relevant") or ""),
-        metadata={"mentioned_handles": list(mentioned)} if mentioned else {},
-    )
-
-
 def _normalize_jobs(
     source: str,
     item: dict[str, Any],
@@ -531,19 +504,10 @@ def _normalize_digg(
     from_date: str,
     to_date: str,
 ) -> schema.SourceItem:
-    """Normalizer for Digg AI 1000 clusters.
-
-    Each cluster is one item. The TLDR carries the most useful body for
-    rerank and synthesis. Top-ranked X posts attached at search time are
-    passed through under metadata['posts'] so render can emit them as
-    inline 'via Digg' quotes.
-    """
+    """Normalize one Digg AI 1000 cluster for rerank and synthesis."""
     title = str(item.get("title") or "").strip()
     tldr = str(item.get("tldr") or "").strip()
     body = "\n\n".join(part for part in [title, tldr] if part)
-    posts = item.get("posts") or []
-    if not isinstance(posts, list):
-        posts = []
     cluster_url_id = str(item.get("id") or f"DG{index + 1}")
     return _source_item(
         item_id=cluster_url_id,
@@ -566,7 +530,6 @@ def _normalize_digg(
             "uniqueAuthors": (item.get("engagement") or {}).get("uniqueAuthors"),
             "postCount": (item.get("engagement") or {}).get("postCount"),
             "firstPostAge": item.get("first_post_age"),
-            "posts": posts,
         },
     )
 

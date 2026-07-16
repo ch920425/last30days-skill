@@ -24,6 +24,13 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+def _is_x_domain(domain: str) -> bool:
+    normalized = domain.strip().lower().lstrip(".")
+    return normalized == "x.com" or normalized.endswith(".x.com") or (
+        normalized == "twitter.com" or normalized.endswith(".twitter.com")
+    )
+
+
 def _lock_temp_cookie_copy(path: str) -> None:
     """Restrict copied cookie DB temp files to the current user on POSIX."""
     if os.name == "nt":
@@ -213,13 +220,15 @@ def _extract_chromium_cookies_macos(
     Args:
         db_path: Path to the browser's Cookies SQLite file.
         keychain_service: macOS Keychain service name (e.g. "Chrome Safe Storage").
-        domain: Cookie domain to match (e.g., ".twitter.com", ".x.com").
+        domain: Cookie domain to match.
         cookie_names: List of cookie names to extract.
 
     Returns:
         Dict mapping cookie name to decrypted value, or None on failure.
         Only includes cookies that were successfully found and decrypted.
     """
+    if _is_x_domain(domain):
+        return None
     if not db_path.exists():
         logger.info("%s cookies database not found at %s", keychain_service, db_path)
         return None

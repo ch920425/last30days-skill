@@ -73,24 +73,6 @@ def _entry(source: str, failure: str, **kwargs) -> Tuple[Tuple[str, str], Prescr
 
 REGISTRY: Dict[Tuple[str, str], Prescription] = dict((
     _entry(
-        "x", "cookies_missing",
-        cause="X browser cookies (AUTH_TOKEN/CT0) are not configured",
-        fix_nl=(
-            "log into x.com in your browser and re-run (cookies detected "
-            "automatically), or add XAI_API_KEY to your .env (get key at "
-            "api.x.ai), or add XQUIK_API_KEY to your .env (get key at xquik.com)"
-        ),
-        fix_cli=SETUP_BROWSER_COOKIES_CLI,
-        anchor="api-keys-env",
-    ),
-    _entry(
-        "x", "cookies_expired",
-        cause="X errored this run: cookies are configured but likely expired or revoked",
-        fix_nl="log into x.com in your browser, then re-run",
-        fix_cli=SETUP_BROWSER_COOKIES_CLI,
-        anchor="api-keys-env",
-    ),
-    _entry(
         "scrapecreators", "key_missing",
         cause="SCRAPECREATORS_API_KEY is not set",
         fix_nl=(

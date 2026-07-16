@@ -15,7 +15,8 @@ def test_cookie_setup_requires_explicit_allow_flag_in_docs():
     config = CONFIGURATION.read_text(encoding="utf-8")
     skill = SKILL_MD.read_text(encoding="utf-8")
     assert "setup --allow-browser-cookies" in config
-    assert "setup --allow-browser-cookies" in skill
+    assert "Do not read browser cookies" in skill
+    assert "X/Twitter is outside this engine" in skill
     assert "Unset = no browser-cookie reads" in config
 
 

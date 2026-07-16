@@ -181,7 +181,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Runtime preflight now auto-provisions a uv-managed CPython 3.12 on hosts that have `uv` but no system Python 3.12+ (most agent sandboxes), instead of hard-failing the version gate. The install is bounded by a 30s HTTP timeout, matches an existing managed `>=3.12` interpreter before downloading, and announces the one-time ~28MB download on stderr rather than installing silently; hosts without `uv` still get the original clear error. Setup invocations now honor `LAST30DAYS_PYTHON` so first-run setup works on the same hosts. ([#738](https://github.com/mvanhorn/last30days-skill/pull/738), thanks @buntysomroy; setup-interpreter fix adapted from #699 by @SeanGearin)
 - Setup wizard summary now displays the install status of the arXiv/Techmeme pp_sources CLIs, so users can see whether they landed on PATH. ([#741](https://github.com/mvanhorn/last30days-skill/pull/741), thanks @23241a6749)
-- `--diagnose` / `--preflight` no longer falsely reports X as unreachable when X auth comes from `FROM_BROWSER` browser cookies. These modes run in `plan_only` and skip cookie extraction for privacy (no Keychain access), so X was dropped from `available_sources` even though a real run authenticates fine. A new side-effect-free `env.x_pending_browser_auth` predicate now reports X as available-pending-browser-auth (and surfaces an `x_pending_browser_auth` flag in `--diagnose`) by keying only on the already-resolved browser list — no cookie is read. Covers every configured browser, including Chrome. ([#692](https://github.com/mvanhorn/last30days-skill/issues/692); first reported and fixed by @23241a6749 in #700)
 
 ### Internal
 
@@ -231,7 +230,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Single X source with backend failover.** X is now one source backed by an ordered chain of interchangeable backends (xai, bird, xurl, xquik) with runtime failover, rather than separate sources. The key-based xquik backend reaches parity with bird, gaining the X-quality ranking and FROM/ABOUT handle lanes, so hosts that cannot supply browser cookies (OpenClaw, CI/cron, headless harnesses) get real X coverage from an xquik key alone. Handle lanes run via the first handle-capable backend in the chain even when a non-capable backend (xai/xurl) is primary. (#622)
 
 ## [3.7.1] - 2026-06-21
 
@@ -265,16 +263,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.6.0] - 2026-06-18
 
-### Added
-
-- **First-party X posts are no longer buried.** A post authored by one of the run's resolved handles (`--x-handle`, `--x-related`, the GitHub user) is now treated as first-class evidence: it is exempt from the entity-miss demotion (a post never repeats its own author's name, so the body-text grounding check used to zero out the subject's own highest-signal posts) and gets a small authorship credit. Third-party collision-noise suppression is unchanged.
-- **Engagement rescue for on-topic X posts.** A high-engagement X post that is first-party or entity-grounded gets a `final_score` floor scaled by its engagement percentile within the run's X pool, so a viral on-topic post can't sit at ~0. Off-topic name-collision posts are explicitly excluded.
-- **First-party interaction signal.** A first-party post directed at another account (a reply / leading @mention) is floated into the visible band regardless of like-count and tagged `interaction:→@handle` in the EVIDENCE block, so the synthesis reads it as a relationship signal rather than low-engagement noise. New **LAW 10** in SKILL.md teaches the model to surface first-party posts and read the interaction tag.
-
-### Changed
-
-- The X FROM lane (the subject's own timeline) now pulls up to 8 posts per handle (was 3); the about/related lanes stay modest.
-
 ### Fixed
 
 - Secrets `.env` and its parent config directory are now auto-tightened to `0o600`/`0o700` after creation, and `check-config.sh`'s `check_perms` now auto-fixes loose permissions with `chmod 600` instead of warning only ([#573](https://github.com/mvanhorn/last30days-skill/issues/573))
@@ -283,13 +271,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **X surfaces tweets FROM and ABOUT a person, both engagement-weighted.** The handle search now pulls the person's real timeline (`from:handle since:`, topic used for ranking only — never AND'd into the query, which previously matched only tweets where they wrote their own name and returned ~0), and a new mention lane (`@handle since:`) surfaces what others say to/about them, excluding their own tweets and deduping against the FROM lane ([#610](https://github.com/mvanhorn/last30days-skill/pull/610)).
 - **`## Top Community Comments` block.** The engine now surfaces vote-ranked community comments across all candidates (not just the top-cluster representatives), per-platform-normalized, into the EVIDENCE-for-synthesis block, so the funniest/sharpest crowd reactions reach the synthesizing model even when no LLM fun-scorer is available. Paired with a new SKILL.md **LAW 9** that requires weaving ≥2 verbatim attributed comments, copying URLs verbatim, and never narrating the tooling in the deliverable ([#608](https://github.com/mvanhorn/last30days-skill/pull/608)).
 
 ### Fixed
 
-- **`--diagnose` honesty.** X status now reflects a real 1-tweet probe (downgrades from green when X is effectively dead; fail-open on a transient timeout) and reports the true auth lane (browser / env / keychain) instead of a hardcoded `env AUTH_TOKEN`. Handle/mention searches log query + result count on success, not only on failure ([#609](https://github.com/mvanhorn/last30days-skill/pull/609)).
-- **X column de-pollution.** The last-chance keyword retry no longer collapses a multi-word subquery to a bare generic token (e.g. `compound`); it keeps an entity anchor ([#607](https://github.com/mvanhorn/last30days-skill/pull/607)).
 - **Mandatory person-aware subquery disambiguation.** Collision-prone person names (Kevin Rose vs Kevin Warsh, Lan Xuezhao vs Lanzhou) must anchor every subquery with the resolved company/role/domain context ([#611](https://github.com/mvanhorn/last30days-skill/pull/611)).
 
 ## [3.4.0] - 2026-06-18
@@ -300,12 +285,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Digg added to first-run setup.** The free, keyless `digg-pp-cli` is now auto-installed during the first-run wizard (best-effort via the Printing Press installer, with a recommend-only fallback), so the already-built Digg AI-news source activates automatically for new users instead of silently never appearing ([#590](https://github.com/mvanhorn/last30days-skill/pull/590)).
 
 - **`LAST30DAYS_YOUTUBE_SSH_HOST` transcript routing** — yt-dlp transcript fetch runs on the remote SSH host via a mktemp + cat pipeline ([#422](https://github.com/mvanhorn/last30days-skill/pull/422)).
-- Browser-cookie auth for X/Twitter now covers the full Chromium family on macOS - Brave, Microsoft Edge, Vivaldi, Opera, Arc, and Chromium - alongside the existing Chrome, Firefox, and Safari. They all share Chrome's v10 AES-128-CBC decryption, differing only in profile path and Keychain service name, so they run through one shared decryption core. The profile finder probes both the modern `Default/Network/Cookies` layout (Chromium >= 96) and the legacy flat `Default/Cookies`, and Chrome now resolves through that same finder so it picks up the modern layout too. Set `FROM_BROWSER=auto` to try every browser, or `FROM_BROWSER=<name>` (e.g. `brave`, `edge`, `arc`) to target one. Verified end-to-end on real Brave and Edge installs ([#572](https://github.com/mvanhorn/last30days-skill/pull/572)).
 - **First-party positioning research + pitch-vs-pulse synthesis (company / product / service topics).** A new mandatory research step captures each entity's current stated positioning from first-party sources (homepage, docs, pricing) rather than from memory. The fetched pitch grounds `What it is` descriptions (entities described as they pitch themselves today), helps reject unrelated brand-name noise, and feeds an evidence-triggered prose beat: when the month's conversation directly supports a specific claim, cuts against one, or is squarely about the pitched ground, the synthesis says so anchored to the top thread — and stays silent when the pulse is orthogonal to the pitch, because a manufactured connection is worse than omission. Claims are tested at matched altitude (specific claims against specific threads; broad taglines are never graded against individual items), and statements stay windowed to the 30 days — no trend verdicts. Scoped to entities with an identifiable first party: people are always excluded (even founders whose companies qualify), as are events, abstract concepts, and ownerless topics like Bitcoin; the beat requires positioning fetched during the run, never from memory.
-
-### Changed
-
-- Updated "Unlock X" promo message to mention Chrome/macOS support and Windows Firefox-only limitation instead of generic "Firefox or Safari" ([#387](https://github.com/mvanhorn/last30days-skill/issues/387))
 
 ### Fixed
 
@@ -317,8 +297,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First-run setup wizard in SKILL.md now references the existing Python setup wizard (`last30days.py setup`) instead of the missing `nux-wizard.md` file, so first-run setup actually runs on new installs. ([#574](https://github.com/mvanhorn/last30days-skill/issues/574))
 - `check-config.sh` no longer exits 1 on the ScrapeCreators-configured path when no prior run exists (empty `LAST_RUN_LINE`) — swapped `&&` guard for an `if` block that always exits cleanly ([#463](https://github.com/mvanhorn/last30days-skill/issues/463))
 - `check-config.sh` no longer exits 1 when a `.env` value contains an unbalanced quote — replaced `xargs` (which interprets quotes) with `sed` for whitespace trimming in `load_env_vars` ([#506](https://github.com/mvanhorn/last30days-skill/issues/506))
-- X/Twitter `.env` template now includes `CT0` alongside `AUTH_TOKEN` in the example skeleton ([CONFIGURATION.md](CONFIGURATION.md)), and the just-in-time unlock wizard offers AUTH_TOKEN/CT0 cookie entry ([#396](https://github.com/mvanhorn/last30days-skill/issues/396))
-- `check-config.sh` no longer counts X as an active source when only `AUTH_TOKEN` is set without `CT0` — both cookies are now required to credit X in the source count ([#396](https://github.com/mvanhorn/last30days-skill/issues/396))
 - Firefox cookie extraction now falls back to scanning non-default profiles when the default profile has no matching X cookies, fixing multi-profile setups where login lives on a non-default profile ([#498](https://github.com/mvanhorn/last30days-skill/issues/498))
 - `subproc.py` `run_with_timeout()` now guards `os.killpg` / `os.getpgid` with `hasattr`, preventing an uncaught `AttributeError` crash when a subprocess times out on Windows where these functions don't exist ([#527](https://github.com/mvanhorn/last30days-skill/issues/527))
 - Entity-grounding rerank demotion now keys on the head token of the primary entity instead of requiring the full multi-word phrase as a contiguous substring. A high-engagement on-entity item (e.g. a 323-pt HN thread titled "Stripe is friendly to 'friendly fraud'") is no longer demoted to score 0 on a `Stripe payments` query just because it lacks the trailing search-hint word. The intended demotion still fires for items that never name the brand at all. The keyless Reddit comment-enrichment slot selection (`_slot_priority`), which mirrors this signal, was updated to the same head-token grounding so the two paths stay consistent.
@@ -341,7 +319,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.3.0] - 2026-05-17
 
-A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged through PR triage. Big themes: install story modernized for the multi-harness world (Claude Code, Codex, Cursor, Gemini CLI, Copilot, Windsurf, and 50+ Agent Skills hosts), new emit and source modes, and a substantial reliability sweep across Reddit, X, Windows, YouTube, and the planner.
+A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged through PR triage. Big themes: install story modernized for the multi-harness world (Claude Code, Codex, Cursor, Gemini CLI, Copilot, Windsurf, and 50+ Agent Skills hosts), new emit and source modes, and a substantial reliability sweep across Reddit, Windows, YouTube, and the planner.
 
 ### Added
 
@@ -361,7 +339,6 @@ A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged throu
 
 - Reddit URL auto-enrichment from web search via the public JSON API ([#366](https://github.com/mvanhorn/last30days-skill/pull/366)).
 - Per-run finding sightings recorded in the SQLite store ([#373](https://github.com/mvanhorn/last30days-skill/pull/373)).
-- Brave browser support for X/Twitter cookie extraction ([#320](https://github.com/mvanhorn/last30days-skill/pull/320)).
 
 **Tests and CI**
 
@@ -424,26 +401,19 @@ A week-long shipping cycle: ~75 PRs merged plus 7 community fixes salvaged throu
 - POSIX-style secret-permission warning skipped on Windows ([#357](https://github.com/mvanhorn/last30days-skill/pull/357)).
 - Render uses forward slashes in save-path footer for Windows ([#338](https://github.com/mvanhorn/last30days-skill/pull/338)).
 
-**xAI / X / xurl**
-
-- `parse_x_response` now raises `http.HTTPError` on empty output, missing JSON, or decode failure — surfaces in `errors_by_source` instead of silently returning an empty result list (Kaustav Mishra, salvaged from #155).
-- `xurl` treats `PermissionError` from PATH lookup as unavailable ([#322](https://github.com/mvanhorn/last30days-skill/pull/322)).
-
 **YouTube**
 
 - SC YouTube + multi-token HN searches unblocked ([#388](https://github.com/mvanhorn/last30days-skill/pull/388)).
 - Transcript-fetch ratio surfaced + degraded-run nudge for stale `yt-dlp` ([#340](https://github.com/mvanhorn/last30days-skill/pull/340)).
 
-**bird_x / HTTP**
+**HTTP**
 
-- Subprocess retry on non-JSON stdout to handle X anti-bot HTML interstitials ([#383](https://github.com/mvanhorn/last30days-skill/pull/383)).
 - HTTP retry budget expanded + exponential backoff on DNS resolution failure ([#382](https://github.com/mvanhorn/last30days-skill/pull/382)).
 - Parallel AI search aligned with current API schema ([#341](https://github.com/mvanhorn/last30days-skill/pull/341)).
 - Parallel web backend routed through grounding ([#354](https://github.com/mvanhorn/last30days-skill/pull/354)).
 
 **Planner and sources**
 
-- `xquik` registered in `SOURCE_CAPABILITIES` ([#336](https://github.com/mvanhorn/last30days-skill/pull/336), fixes [#319](https://github.com/mvanhorn/last30days-skill/issues/319)).
 - Honor explicit optional source requests ([#356](https://github.com/mvanhorn/last30days-skill/pull/356)).
 - ScrapeCreators source-gating aligned between code and docs ([#415](https://github.com/mvanhorn/last30days-skill/pull/415)).
 - OpenClaw works without ScrapeCreators key ([#392](https://github.com/mvanhorn/last30days-skill/pull/392), by @thinkun).
@@ -491,7 +461,7 @@ Full PR list at [github.com/mvanhorn/last30days-skill/releases/tag/v3.3.0](https
 ### Added
 
 - Add `--emit=html` for shareable, print-friendly HTML research briefs.
-- **Digg AI 1000 source** (auto-enabled when `digg-pp-cli` is on PATH). Surfaces curated story clusters from the AI 1000 leaderboard and pulls attributable X-post quotes into the brief as `[@handle](xUrl) via Digg AI 1000: ...` lines. Footer line: `⛏️ Digg AI 1000: N clusters │ K posts │ M authors`. No X auth required for the inline quotes since they flow through Digg's read-only endpoints.
+- **Digg AI 1000 source** (auto-enabled when `digg-pp-cli` is on PATH). Surfaces curated story clusters from the AI 1000 leaderboard. Footer line: `⛏️ Digg AI 1000: N clusters │ K posts │ M authors`.
 
 ## [3.1.1] - 2026-04-24
 
@@ -527,7 +497,7 @@ Individual changelog entries for 3.0.10 through 3.0.14 below document the increm
 
 ### Changed
 
-- **vs mode runs N full passes in parallel, one per entity.** Architectural revert of the 3-pass → 1-pass latency optimization from an earlier version. `/last30days "OpenAI vs Anthropic vs xAI"` now runs three full `pipeline.run()` calls in parallel via the same fanout `--competitors` uses, producing three `*-raw.md` save files plus a merged comparison output. Each entity gets its own Step 0.55-grade targeting, own primary X handle weight, own subreddit scoping — apples-to-apples depth instead of the one-pool merged retrieval the single-pass path produced. Parallel execution keeps wall clock ≈ single pass.
+- **vs mode runs N full passes in parallel, one per entity.** Architectural revert of the 3-pass → 1-pass latency optimization from an earlier version. `/last30days "OpenAI vs Anthropic vs xAI"` now runs three full `pipeline.run()` calls in parallel via the same fanout `--competitors` uses, producing three `*-raw.md` save files plus a merged comparison output. Each entity gets its own Step 0.55-grade community, GitHub, and context targeting — apples-to-apples depth instead of one pooled retrieval. Parallel execution keeps wall clock ≈ single pass.
 - **`--competitors` is now a SKILL.md-level shortcut for vs-mode with auto-discovery.** The hosting reasoning model (Claude Code, Codex, Hermes, Gemini, any agent with WebSearch) performs discovery and Step 0.55 per entity via its own WebSearch tool, then invokes the engine with a vs-topic and `--competitors-plan` JSON. The engine flag remains for headless/cron use with BRAVE/EXA/SERPER/PARALLEL/OPENROUTER keys (engine-internal `auto_resolve` stays as fallback).
 - **LAW 7-style stderr for `--competitors` with no backend** now leads with the hosting-model path (WebSearch + Step 0.55 + `--competitors-plan`) instead of `BRAVE_API_KEY`. API-key framing moved to a secondary "headless" section.
 
@@ -540,13 +510,13 @@ Individual changelog entries for 3.0.10 through 3.0.14 below document the increm
 ### Fixed
 
 - **BRAVE/SERPER footer nudge suppressed** when `--plan` or `--competitors-plan` is present. The nudge told Claude Code users to set an API key when they already have WebSearch via the hosting model. Nudge still fires for true headless runs (no `--plan`, no backend) where the advice is correct.
-- **Override-leak regression testing.** 3.0.12 already fixed the main-topic `--subreddits` / `--x-handle` / `--github-*` from leaking into peer sub-runs via explicit per-entity kwargs scrubbing. This release adds a 4-test regression suite (`test_competitor_subrun_isolation.py`) locking in the invariant.
+- **Override-leak regression testing.** Main-topic `--subreddits` / `--github-*` overrides no longer leak into peer sub-runs.
 
 ## [3.0.12] - 2026-04-22
 
 ### Fixed
 
-- **Per-entity Step 0.55 resolution for competitor sub-runs.** In 3.0.11, only the main topic got X handle / subreddit / GitHub resolution; competitor sub-runs ran with planner defaults and produced visibly thinner evidence (Reddit 403 fallbacks, single-word queries). Each competitor sub-run now calls `resolve.auto_resolve()` inside `fanout.run_competitor_fanout` when a web backend is available, mirroring the main topic's pre-flight resolution. Per-entity X handle, subreddit list, GitHub user/repos, and news context are threaded into each sub-run's `pipeline.run()` call. Deep-copied config per sub-run prevents `_auto_resolve_context` cross-leak. Surfaces in a new `## Resolved Entities` output block so the resolution coverage is visible without reading stderr.
+- **Per-entity Step 0.55 resolution for competitor sub-runs.** Competitor sub-runs now receive their own subreddit, GitHub, and current-context resolution instead of inheriting thin planner defaults. Deep-copied config per sub-run prevents `_auto_resolve_context` cross-leak.
 - **LAW 7 false-positive on internal fan-out sub-runs.** Each competitor sub-run was emitting the `[Planner] No --plan passed... YOU ARE the planner` stderr warning. LAW 7 targets the hosting-reasoning-model path, not engine-internal fan-out. New `internal_subrun=True` keyword on `planner.plan_query` and `pipeline.run` suppresses the warning for sub-runs only; the default path is unchanged.
 - **Marketplace-stale SKILL.md trap.** Added a STEP 0 canonical-path self-check at the top of SKILL.md. Two of three 2026-04-22 test runs loaded SKILL.md from `plugins/marketplaces/last30days-skill/` (Claude-Code-managed git clone pinned to origin/main, lagging the versioned cache), then ran `--help` against the same stale path, did not see `--competitors`, and fell back to a manual comparison plan. The STEP 0 block forces any reader to verify they loaded from `plugins/cache/last30days-skill/last30days/{VERSION}/SKILL.md` and re-read from the versioned cache if not.
 
@@ -556,7 +526,7 @@ Individual changelog entries for 3.0.10 through 3.0.14 below document the increm
 
 ### Added
 
-- **`## Resolved Entities` block** in `render_comparison_multi` output. Shows per-entity X handle, subreddits, GitHub user/repos, and truncated context for every entity in the comparison. Block is omitted entirely when no entity has a resolved payload (mock mode, no backend).
+- **`## Resolved Entities` block** in `render_comparison_multi` output. Shows per-entity subreddits, GitHub user/repos, and truncated context for every entity in the comparison. Block is omitted entirely when no entity has a resolved payload (mock mode, no backend).
 
 ## [3.0.11] - 2026-04-22
 
@@ -698,7 +668,7 @@ If `/last30days` stopped working for you, run `/plugin update last30days` then `
 
 ### Removed
 
-- Unused root `vendor/` directory (215 files from an accidental commit in PR #48 - the real vendored X client lives at `scripts/lib/vendor/bird-search/`).
+- Unused root `vendor/` directory (215 files from an accidental commit in PR #48).
 - Legacy top-level `plans/` directory (superseded by `docs/plans/`; both plans described work that was already shipped in v3).
 
 ### Added
@@ -715,9 +685,9 @@ Intelligent search, fun judge, cross-source cluster merging, single-pass compari
 
 ### Added
 
-- **Intelligent pre-research** -- Resolves X handles, subreddits, TikTok hashtags, and YouTube channels via a new Python brain before any API calls fire. Bidirectional: person to company, product to founder.
+- **Intelligent pre-research** -- Resolves subreddits, TikTok hashtags, and YouTube channels via a new Python brain before any API calls fire.
 - **Fun judge / Best Takes** -- Second parallel LLM judge scores humor, cleverness, and virality. Surfaces the best reactions in a dedicated output section.
-- **Cross-source cluster merging** -- Entity-based overlap detection merges the same story across Reddit, X, YouTube into one cluster instead of three separate items.
+- **Cross-source cluster merging** -- Entity-based overlap detection merges the same story across supported sources into one cluster instead of separate items.
 - **Single-pass comparisons** -- "X vs Y" runs one pass with entity-aware subqueries instead of three serial passes. 3 minutes instead of 12+.
 - **GitHub as a source** -- Stars, reactions, and comments from repos and issues.
 - **OpenClaw first-class citizen** -- Auto-resolve for engine-side pre-research. Device auth for frictionless ScrapeCreators signup.
@@ -842,21 +812,20 @@ Instagram Reels as the 8th signal source, TikTok migrated from Apify to ScrapeCr
 
 - Web stats line showing full URLs instead of plain domain names
 - Trailing "Sources:" block appearing after skill invitation (WebSearch tool mandate conflict)
-- Instagram/TikTok not running in web-only mode when `--search=instagram` used without Reddit/X
+- Instagram/TikTok not running in web-only mode when `--search=instagram` used without Reddit
 - `$ARGUMENTS` quoting in SKILL.md for correct flag forwarding
 
 ## [2.1.0] - 2026-02-15
 
 ### Highlights
 
-Three headline features: watchlists for always-on bots, YouTube transcripts as a 4th source, and Codex CLI compatibility. Plus bundled X search with no external CLI needed.
+Three headline features: watchlists for always-on bots, YouTube transcripts, and Codex CLI compatibility.
 
 ### Added
 
 - Open-class skill with watchlists, briefings, and history modes (SQLite-backed, FTS5 full-text search, WAL mode) (`feat(open)`)
 - YouTube as a 4th research source via yt-dlp -- search, view counts, and auto-generated transcript extraction (`feat: Add YouTube`)
 - OpenAI Codex CLI compatibility -- install to `~/.agents/skills/last30days`, invoke with `$last30days` (`feat: Add Codex CLI`)
-- Bundled X search -- vendored subset of Bird's Twitter GraphQL client (MIT, originally by @steipete), no external CLI needed (`v2.1: Bundle Bird X search`)
 - Native web search backends: Parallel AI, Brave Search, OpenRouter/Perplexity Sonar Pro (`feat(engine)`)
 - `--diagnose` flag for checking available sources and authentication status
 - `--store` flag for SQLite accumulation (open variant)
@@ -864,7 +833,7 @@ Three headline features: watchlists for always-on bots, YouTube transcripts as a
 
 ### Changed
 
-- Smarter query construction -- strips noise words, auto-retries with shorter queries when X returns 0 results
+- Smarter query construction -- strips noise words and auto-retries with shorter queries when sources return 0 results
 - Two-phase search architecture -- Phase 1 discovers entities (@handles, r/subreddits), Phase 2 drills into them
 - Reddit JSON enrichment -- real upvotes, comments, and upvote ratio from reddit.com/.json endpoint
 - Engagement-weighted scoring: relevance 45%, recency 25%, engagement 30% (log1p dampening)
@@ -881,7 +850,6 @@ Three headline features: watchlists for always-on bots, YouTube transcripts as a
 - Reddit future timeout (same pattern as YouTube timeout bug)
 - Process cleanup on timeout/kill -- tracks child PIDs for clean shutdown
 - Windows Unicode fix for cp1252 emoji crash (thanks @JosephOIbrahim, [#17](https://github.com/mvanhorn/last30days-skill/pull/17))
-- X search returning 0 results on popular topics due to over-specific queries
 
 ### New Contributors
 
@@ -896,7 +864,7 @@ Three headline features: watchlists for always-on bots, YouTube transcripts as a
 
 ## [1.0.0] - 2026-01-15
 
-Initial public release. Reddit + X search via OpenAI Responses API and xAI API.
+Initial public release.
 
 [3.0.9]: https://github.com/mvanhorn/last30days-skill/compare/v3.0.5...v3.0.9
 [2.9.1]: https://github.com/mvanhorn/last30days-skill/compare/v2.9.0...v2.9.1

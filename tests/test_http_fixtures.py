@@ -174,7 +174,7 @@ def test_module_seam_records_and_replays_adapter_failures(tmp_path, monkeypatch)
     assert replayed.value.exception_type == "RuntimeError"
 
 
-@pytest.mark.parametrize("source", ["youtube", "digg"])
+@pytest.mark.parametrize("source", ["youtube"])
 def test_post_ranking_cli_enrichment_records_and_replays(
     tmp_path,
     monkeypatch,
@@ -190,17 +190,10 @@ def test_post_ranking_cli_enrichment_records_and_replays(
         engagement={"postCount": 1} if source == "digg" else {},
         metadata={"clusterUrlId": "cluster-1"} if source == "digg" else {},
     )
-    if source == "youtube":
-        def enrich(items, **_kwargs):
-            items[0].metadata["transcript_snippet"] = "recorded transcript"
+    def enrich(items, **_kwargs):
+        items[0].metadata["transcript_snippet"] = "recorded transcript"
 
-        monkeypatch.setattr(pipeline.youtube_yt, "backfill_transcripts", enrich)
-    else:
-        def enrich(items, **_kwargs):
-            items[0].metadata["posts"] = [{"url": "https://x.com/example/status/1"}]
-            return items
-
-        monkeypatch.setattr(pipeline.digg, "enrich_source_items", enrich)
+    monkeypatch.setattr(pipeline.youtube_yt, "backfill_transcripts", enrich)
 
     with http.recording_requests(fixture_dir):
         recorded = pipeline._finalize_items_by_source(

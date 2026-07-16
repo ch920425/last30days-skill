@@ -39,7 +39,6 @@ class ProviderRuntime:
     reasoning_provider: Literal["gemini", "openai", "xai", "local"]
     planner_model: str
     rerank_model: str
-    x_search_backend: Literal["xai", "bird"] | None = None
 
 
 @dataclass(frozen=True)
@@ -392,7 +391,6 @@ def provider_runtime_from_dict(payload: dict[str, Any]) -> ProviderRuntime:
         reasoning_provider=payload["reasoning_provider"],
         planner_model=payload["planner_model"],
         rerank_model=payload["rerank_model"],
-        x_search_backend=payload.get("x_search_backend"),
     )
 
 

@@ -568,8 +568,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--publish-password",
                         help="Optional shared password for --publish-html or 'library feed --publish'; prefer LAST30DAYS_PUBLISH_PASSWORD to avoid exposing secrets in process lists")
     parser.add_argument("--store", action="store_true", help="Persist ranked findings to the SQLite research store")
-    parser.add_argument("--x-handle", help="X handle for targeted supplemental search")
-    parser.add_argument("--x-related", help="Comma-separated related X handles (searched with lower weight)")
     parser.add_argument("--web-backend", default="auto",
                         choices=["auto", "brave", "exa", "serper", "parallel", "none"],
                         help="Web search backend (default: auto, tries Brave then Exa then Serper then Parallel)")
@@ -647,7 +645,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="competitors_plan",
         help=(
             "JSON mapping of per-entity Step 0.55 targeting for competitor / vs-mode "
-            "sub-runs. Schema: {entity_name: {x_handle?, x_related?, subreddits?, "
+            "sub-runs. Schema: {entity_name: {subreddits?, "
             "github_user?, github_repos?, context?}}. Accepts inline JSON or a file "
             "path. Implies --competitors. Preferred over --competitors-list when the "
             "hosting model has already resolved per-entity handles and subs."
@@ -686,7 +684,7 @@ def parse_competitors_plan(raw: str | None) -> dict[str, dict]:
         )
         raise SystemExit(2)
     known_fields = {
-        "x_handle", "x_related", "subreddits",
+        "subreddits",
         "github_user", "github_repos", "trustpilot_domain", "context",
     }
     normalized: dict[str, dict] = {}
@@ -730,19 +728,9 @@ def subrun_kwargs_for(
             return resolved[resolved_key]
         return None
 
-    x_handle = _choose("x_handle", "x_handle")
-    if isinstance(x_handle, str):
-        x_handle = x_handle.lstrip("@") or None
-
     subreddits = _choose("subreddits", "subreddits")
     if isinstance(subreddits, list):
         subreddits = [s.strip().removeprefix("r/") for s in subreddits if s.strip()] or None
-
-    x_related = plan_entry.get("x_related")
-    if isinstance(x_related, list):
-        x_related = [h.strip().lstrip("@") for h in x_related if h.strip()] or None
-    else:
-        x_related = None
 
     github_user = _choose("github_user", "github_user")
     if isinstance(github_user, str):
@@ -764,8 +752,6 @@ def subrun_kwargs_for(
     context = plan_entry.get("context") or resolved.get("context") or ""
 
     return {
-        "x_handle": x_handle,
-        "x_related": x_related,
         "subreddits": subreddits,
         "github_user": github_user,
         "github_repos": github_repos,
@@ -842,8 +828,6 @@ def _missing_sources_for_promo(diag: dict[str, object]) -> str | None:
     missing = []
     if "reddit" not in available:
         missing.append("reddit")
-    if "x" not in available:
-        missing.append("x")
     # The web promo nudges toward a paid backend for higher-quality web search.
     # Grounding is now available keyless on non-native hosts, so key the promo on
     # the absence of a *paid* backend, not on grounding availability. Suppress it
@@ -853,8 +837,6 @@ def _missing_sources_for_promo(diag: dict[str, object]) -> str | None:
         missing.append("web")
     if not missing:
         return None
-    if "reddit" in missing and "x" in missing:
-        return "both"
     return missing[0]
 
 
@@ -1173,14 +1155,6 @@ def _run_drill(
             depth="deep",
             requested_sources=sources,
             mock=args.mock,
-            x_handle=(
-                (args.x_handle or resolved.get("x_handle") or None)
-                if "x" in sources else None
-            ),
-            x_related=(
-                [value.strip() for value in args.x_related.split(",") if value.strip()]
-                if (args.x_related and "x" in sources) else None
-            ),
             web_backend=args.web_backend,
             external_plan=schema.to_dict(drill_plan),
             subreddits=(
@@ -2303,7 +2277,6 @@ def _main(
     if args.max_source_fetches is not None:
         config["_max_source_fetches"] = args.max_source_fetches
     try:
-        x_related = [h.strip() for h in args.x_related.split(",") if h.strip()] if args.x_related else None
         subreddits = [s.strip().removeprefix("r/") for s in args.subreddits.split(",") if s.strip()] if args.subreddits else None
         dedicated_subreddits = [s.strip().removeprefix("r/") for s in args.dedicated_subreddits.split(",") if s.strip()] if args.dedicated_subreddits else None
         tiktok_hashtags = [h.strip().lstrip("#") for h in args.tiktok_hashtags.split(",") if h.strip()] if args.tiktok_hashtags else None
@@ -2341,9 +2314,6 @@ def _main(
             if resolution.get("subreddits") and not subreddits:
                 subreddits = resolution["subreddits"]
                 sys.stderr.write(f"[AutoResolve] Subreddits: {', '.join(subreddits)}\n")
-            if resolution.get("x_handle") and not args.x_handle:
-                args.x_handle = resolution["x_handle"]
-                sys.stderr.write(f"[AutoResolve] X handle: @{args.x_handle}\n")
             if resolution.get("github_user") and not args.github_user:
                 args.github_user = resolution["github_user"]
                 sys.stderr.write(f"[AutoResolve] GitHub user: @{args.github_user}\n")
@@ -2414,7 +2384,7 @@ def _main(
         # planner can split it into >=2 entities, route through the same
         # N-pass fanout path as --competitors. The first entity becomes the
         # main topic; remaining entities become the competitor list. User's
-        # outer --x-handle / --subreddits apply to the first entity unless
+        # outer --subreddits apply to the first entity unless
         # --competitors-plan covers it.
         from lib import planner as _planner
         vs_entities = _planner._comparison_entities(topic)
@@ -2441,8 +2411,6 @@ def _main(
                 depth=depth,
                 requested_sources=requested_sources,
                 mock=args.mock,
-                x_handle=args.x_handle,
-                x_related=x_related,
                 web_backend=args.web_backend,
                 external_plan=external_plan,
                 subreddits=subreddits,
@@ -2463,7 +2431,6 @@ def _main(
             )
             r.artifacts["resolved"] = {
                 "entity": topic,
-                "x_handle": (args.x_handle or "").lstrip("@"),
                 "subreddits": list(subreddits or []),
                 "github_user": (github_user or ""),
                 "github_repos": list(github_repos or []),
@@ -2490,7 +2457,7 @@ def _main(
                         "  1. WebSearch for '{topic} competitors' or '{topic} alternatives'.\n"
                         "  2. For each peer, WebSearch for handles/subs/github (Step 0.55).\n"
                         "  3. Re-invoke: /last30days '{topic} vs {peer1} vs {peer2}' "
-                        "--competitors-plan '{\"Peer1\":{\"x_handle\":\"h1\",\"subreddits\":"
+                        "--competitors-plan '{\"Peer1\":{\"subreddits\":"
                         "[\"s1\"],...},\"Peer2\":{...}}'.\n"
                         "See SKILL.md 'Competitor mode' for the full protocol.\n"
                         "\n"
@@ -2525,7 +2492,6 @@ def _main(
                 plan_entry = comp_plan.get(entity.strip().lower(), {})
                 resolved = {
                     "entity": entity,
-                    "x_handle": "",
                     "subreddits": [],
                     "github_user": "",
                     "github_repos": [],
@@ -2536,9 +2502,7 @@ def _main(
                 # pre-resolved via --competitors-plan (saves a redundant
                 # round-trip and makes per-entity Step 0.55 purely
                 # hosting-model-driven).
-                plan_covers_fully = bool(plan_entry.get("x_handle")) and bool(
-                    plan_entry.get("subreddits")
-                )
+                plan_covers_fully = bool(plan_entry.get("subreddits"))
                 if (
                     not args.mock
                     and not plan_covers_fully
@@ -2552,7 +2516,6 @@ def _main(
                             f"{type(exc).__name__}: {exc}\n"
                         )
                         r = {}
-                    resolved["x_handle"] = r.get("x_handle", "") or ""
                     resolved["subreddits"] = list(r.get("subreddits") or [])
                     resolved["github_user"] = r.get("github_user", "") or ""
                     resolved["github_repos"] = list(r.get("github_repos") or [])
@@ -2562,7 +2525,6 @@ def _main(
                 # Record effective per-entity targeting for the Resolved block.
                 resolved_effective = {
                     "entity": entity,
-                    "x_handle": kwargs["x_handle"] or "",
                     "subreddits": kwargs["subreddits"] or [],
                     "github_user": kwargs["github_user"] or "",
                     "github_repos": kwargs["github_repos"] or [],
@@ -2573,7 +2535,6 @@ def _main(
                     entity_config["_auto_resolve_context"] = kwargs["_context"]
                 sys.stderr.write(
                     f"[Competitors] {entity}: "
-                    f"x=@{resolved_effective['x_handle'] or '-'} "
                     f"subs={len(resolved_effective['subreddits'])} "
                     f"gh={resolved_effective['github_user'] or '-'} "
                     f"({'plan' if plan_entry else 'auto'})\n"
@@ -2584,8 +2545,6 @@ def _main(
                     depth=depth,
                     requested_sources=requested_sources,
                     mock=args.mock,
-                    x_handle=kwargs["x_handle"],
-                    x_related=kwargs["x_related"],
                     subreddits=kwargs["subreddits"],
                     github_user=kwargs["github_user"],
                     github_repos=kwargs["github_repos"],
@@ -2669,7 +2628,6 @@ def _main(
                     if (it.metadata.get("transcript_highlights") or it.metadata.get("transcript_snippet"))
                 ),
                 "youtube_error": report.errors_by_source.get("youtube"),
-                "x_error": report.errors_by_source.get("x"),
                 # Captions-disabled videos can never produce a transcript regardless
                 # of yt-dlp version; subtract them from the degraded-ratio
                 # denominator so a single uploader-disabled video does not trip the
@@ -2700,8 +2658,7 @@ def _main(
     # Used to emit a Pre-Research Status warning when the model skipped
     # Step 0.5 / 0.55 and invoked the engine bare on an eligible topic.
     pre_research_flags_present = bool(
-        args.x_handle
-        or args.github_user
+        args.github_user
         or args.subreddits
         or args.plan
         or args.auto_resolve

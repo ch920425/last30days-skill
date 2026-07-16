@@ -1,7 +1,6 @@
 """Browser cookie extraction for last30days.
 
-Extracts cookies from local browser databases (Firefox, Chrome, Brave, Safari)
-to enable zero-config authentication for services like X/Twitter.
+Extracts cookies from local browser databases for supported non-X services.
 Note: Chrome/Brave extraction is macOS-only; Windows Chrome/Edge use
 DPAPI-encrypted stores that are not yet supported.
 
@@ -20,6 +19,14 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def _is_x_domain(domain: str) -> bool:
+    """Return True for X/Twitter domains, which are never cookie-readable."""
+    normalized = domain.strip().lower().lstrip(".")
+    return normalized == "x.com" or normalized.endswith(".x.com") or (
+        normalized == "twitter.com" or normalized.endswith(".twitter.com")
+    )
 
 
 def _lock_temp_cookie_copy(path: str) -> None:
@@ -183,7 +190,7 @@ def _query_cookies_db(
                 f"SELECT name, value FROM moz_cookies "
                 f"WHERE host LIKE ? AND name IN ({placeholders})"
             )
-            # domain pattern: match .x.com, x.com, etc.
+            # Domain pattern: match both bare and leading-dot cookie domains.
             domain_pattern = f"%{domain}"
             params = [domain_pattern] + list(cookie_names)
 
@@ -218,7 +225,7 @@ def _try_firefox_dir(profiles_dir: Path, domain: str, cookie_names: List[str]) -
 
     Tries the default profile first, then falls back to scanning all
     profiles for matching cookies.  This handles multi-profile setups
-    where the user is logged into x.com on a non-default profile.
+    where the user is logged into a supported service on a non-default profile.
     """
     default_profile = _find_default_profile(profiles_dir)
     profiles_tried = 0
@@ -259,12 +266,14 @@ def extract_firefox_cookies(
     without DPAPI or any Windows-side helpers.
 
     Args:
-        domain: The cookie domain to match (e.g. ".x.com"). Matched with LIKE %domain.
-        cookie_names: List of cookie names to extract (e.g. ["auth_token", "ct0"]).
+        domain: The cookie domain to match. Matched with LIKE %domain.
+        cookie_names: List of cookie names to extract.
 
     Returns:
         Dict of {cookie_name: cookie_value} or None if extraction fails.
     """
+    if _is_x_domain(domain):
+        return None
     profiles_dir = _get_firefox_profiles_dir()
     if profiles_dir is not None:
         result = _try_firefox_dir(profiles_dir, domain, cookie_names)
@@ -293,6 +302,8 @@ def extract_chrome_cookies(
     Returns:
         Dict of {cookie_name: cookie_value} or None if extraction fails.
     """
+    if _is_x_domain(domain):
+        return None
     if platform.system() != "Darwin":
         logger.debug("Chrome cookie extraction only supported on macOS")
         return None
@@ -316,6 +327,8 @@ def extract_brave_cookies(
     Returns:
         Dict of {cookie_name: cookie_value} or None if extraction fails.
     """
+    if _is_x_domain(domain):
+        return None
     if platform.system() != "Darwin":
         logger.debug("Brave cookie extraction only supported on macOS")
         return None
@@ -336,6 +349,8 @@ def _extract_chromium_family_cookies(
     v10 AES-128-CBC encryption, with their own profile path and Keychain
     service name (see chrome_cookies.CHROMIUM_BROWSER_PROFILES).
     """
+    if _is_x_domain(domain):
+        return None
     if platform.system() != "Darwin":
         logger.debug("%s cookie extraction only supported on macOS", browser)
         return None
@@ -382,6 +397,8 @@ def extract_safari_cookies(
     Returns:
         Dict of {cookie_name: cookie_value} or None if extraction fails.
     """
+    if _is_x_domain(domain):
+        return None
     if platform.system() != "Darwin":
         logger.debug("Safari cookie extraction only supported on macOS")
         return None
@@ -404,7 +421,7 @@ def extract_cookies(
             'auto' tries browsers in platform-appropriate order:
             - macOS: Chrome -> Brave -> Edge -> Vivaldi -> Opera -> Arc -> Chromium -> Firefox -> Safari
             - Linux: Firefox only
-        domain: The cookie domain to match (e.g. ".x.com").
+        domain: The cookie domain to match.
         cookie_names: List of cookie names to extract.
 
     Returns:
@@ -453,13 +470,20 @@ def extract_cookies_with_source(
     Args:
         browser: One of 'firefox', 'chrome', 'brave', 'edge', 'vivaldi',
             'opera', 'arc', 'chromium', 'safari', or 'auto'.
-        domain: The cookie domain to match (e.g. ".x.com").
+        domain: The cookie domain to match.
         cookie_names: List of cookie names to extract.
 
     Returns:
         Tuple of ({cookie_name: cookie_value}, browser_name) or None.
         browser_name is "firefox-wsl" when cookies came from Windows Firefox via WSL2.
     """
+    if _is_x_domain(domain):
+        logger.warning(
+            "Refusing browser-cookie extraction for X/Twitter; "
+            "use the separate bearer-only X API v2 skill"
+        )
+        return None
+
     extractors = {
         "firefox": extract_firefox_cookies,
         "chrome": extract_chrome_cookies,

@@ -15,7 +15,7 @@ class TestIsFirstRun:
 
     def test_first_run_when_setup_complete_not_set(self):
         """SETUP_COMPLETE not in config -> first run."""
-        config = {"AUTH_TOKEN": "abc", "CT0": "xyz"}
+        config = {"BRAVE_API_KEY": "configured"}
         assert setup_wizard.is_first_run(config) is True
 
     def test_first_run_when_setup_complete_is_none(self):
@@ -46,14 +46,13 @@ class TestRunAutoSetup:
     @patch("shutil.which")
     def test_cookies_found(self, mock_which, mock_extract):
         """When cookies are found, results dict includes them."""
-        mock_extract.return_value = ({"auth_token": "abc", "ct0": "xyz"}, "chrome")
+        mock_extract.return_value = ({"_session_id": "sess123"}, "chrome")
         mock_which.return_value = "/usr/local/bin/yt-dlp"
 
         config = {}
         results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
 
-        assert "x" in results["cookies_found"]
-        assert results["cookies_found"]["x"] == "chrome"
+        assert results["cookies_found"]["truthsocial"] == "chrome"
         assert results["ytdlp_installed"] is True
         assert results["ytdlp_action"] == "already_installed"
         assert results["env_written"] is False
@@ -90,9 +89,7 @@ class TestRunAutoSetup:
     def test_multiple_sources(self, mock_which, mock_extract):
         """Multiple cookie sources can be found."""
         def side_effect(browser, domain, cookie_names):
-            if domain == ".x.com":
-                return ({"auth_token": "abc", "ct0": "xyz"}, "firefox")
-            elif domain == ".truthsocial.com":
+            if domain == ".truthsocial.com":
                 return ({"_session_id": "sess123"}, "firefox")
             return None
 
@@ -102,7 +99,6 @@ class TestRunAutoSetup:
         config = {}
         results = setup_wizard.run_auto_setup(config, allow_browser_cookies=True)
 
-        assert results["cookies_found"]["x"] == "firefox"
         assert results["cookies_found"]["truthsocial"] == "firefox"
 
     @patch("lib.cookie_extract.extract_cookies_with_source")
@@ -110,8 +106,8 @@ class TestRunAutoSetup:
     def test_default_scan_order_is_chromium_first(self, mock_which, mock_extract):
         """U1: with FROM_BROWSER unset, the scan tries Chrome before Safari.
 
-        Safari is the only X-cookie source needing Full Disk Access; Chrome
-        reads via the Keychain with no FDA. The wizard must try the Chromium
+        Safari cookie access can need Full Disk Access; Chrome reads via the
+        Keychain with no FDA. The wizard must try the Chromium
         family first so the common macOS user does not hit the FDA dead-end.
         """
         tried = []
@@ -381,7 +377,7 @@ class TestWriteSetupConfig:
         """Appends to existing .env without overwriting keys."""
         with tempfile.TemporaryDirectory() as tmpdir:
             env_path = Path(tmpdir) / ".env"
-            env_path.write_text("XAI_API_KEY=my-key\nAUTH_TOKEN=tok123\n")
+            env_path.write_text("XAI_API_KEY=my-key\nBRAVE_API_KEY=brave123\n")
 
             result = setup_wizard.write_setup_config(env_path)
 
@@ -389,7 +385,7 @@ class TestWriteSetupConfig:
             content = env_path.read_text()
             # Original keys preserved
             assert "XAI_API_KEY=my-key" in content
-            assert "AUTH_TOKEN=tok123" in content
+            assert "BRAVE_API_KEY=brave123" in content
             # SETUP_COMPLETE appended; FROM_BROWSER omitted (no browser detected)
             assert "SETUP_COMPLETE=true" in content
             assert "FROM_BROWSER" not in content
@@ -603,13 +599,13 @@ class TestGetSetupStatusText:
     def test_with_cookies_and_ytdlp(self):
         """Status text mentions found cookies and yt-dlp."""
         results = {
-            "cookies_found": {"x": "chrome"},
+            "cookies_found": {"truthsocial": "chrome"},
             "ytdlp_installed": True,
             "ytdlp_action": "already_installed",
             "env_written": True,
         }
         text = setup_wizard.get_setup_status_text(results)
-        assert "X cookies found in chrome" in text
+        assert "TRUTHSOCIAL cookies found in chrome" in text
         assert "yt-dlp already installed" in text
         assert "Configuration saved" in text
 
@@ -622,7 +618,7 @@ class TestGetSetupStatusText:
             "env_written": False,
         }
         text = setup_wizard.get_setup_status_text(results)
-        assert "No browser cookies found" in text
+        assert "No optional browser-backed sources configured" in text
         assert "Install Homebrew first" in text
 
     def test_status_text_installed(self):

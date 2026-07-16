@@ -39,8 +39,8 @@ def mock_firefox_env(tmp_path):
         if profiles is None:
             profiles = {
                 default_profile: [
-                    (".x.com", "auth_token", "tok_abc123"),
-                    (".x.com", "ct0", "ct0_xyz789"),
+                    (".reddit.com", "reddit_session", "tok_abc123"),
+                    (".reddit.com", "csrf_token", "csrf_token_xyz789"),
                     (".example.com", "session", "sess_other"),
                 ],
             }
@@ -106,7 +106,7 @@ class TestExtractFirefoxCookies:
         )
         conn.execute(
             "INSERT INTO moz_cookies (name, value, host) VALUES (?, ?, ?)",
-            ("auth_token", "tok_abc123", ".x.com"),
+            ("reddit_session", "tok_abc123", ".reddit.com"),
         )
         conn.commit()
         conn.close()
@@ -120,9 +120,9 @@ class TestExtractFirefoxCookies:
             return real_connect(path, *args, **kwargs)
 
         with patch("lib.cookie_extract.sqlite3.connect", side_effect=assert_temp_copy_locked):
-            result = _query_cookies_db(db_path, ".x.com", ["auth_token"])
+            result = _query_cookies_db(db_path, ".reddit.com", ["reddit_session"])
 
-        assert result == {"auth_token": "tok_abc123"}
+        assert result == {"reddit_session": "tok_abc123"}
 
     @pytest.mark.skipif(os.name == "nt", reason="POSIX permission model does not apply on Windows; mkstemp is 0o666 there")
     def test_temp_cookie_copy_never_world_readable(self, tmp_path):
@@ -137,7 +137,7 @@ class TestExtractFirefoxCookies:
         )
         conn.execute(
             "INSERT INTO moz_cookies (name, value, host) VALUES (?, ?, ?)",
-            ("auth_token", "tok_abc123", ".x.com"),
+            ("reddit_session", "tok_abc123", ".reddit.com"),
         )
         conn.commit()
         conn.close()
@@ -152,7 +152,7 @@ class TestExtractFirefoxCookies:
             return real_lock(path)
 
         with patch.object(cookie_extract, "_lock_temp_cookie_copy", side_effect=spy):
-            _query_cookies_db(db_path, ".x.com", ["auth_token"])
+            _query_cookies_db(db_path, ".reddit.com", ["reddit_session"])
 
         assert observed["mode_after_copy"] == 0o600
 
@@ -164,11 +164,11 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._get_firefox_profiles_dir",
             return_value=profiles_dir,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token", "ct0"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is not None
-        assert result["auth_token"] == "tok_abc123"
-        assert result["ct0"] == "ct0_xyz789"
+        assert result["reddit_session"] == "tok_abc123"
+        assert result["csrf_token"] == "csrf_token_xyz789"
         assert "session" not in result  # different domain cookie not included
 
     def test_multiple_profiles_selects_default(self, mock_firefox_env):
@@ -176,11 +176,11 @@ class TestExtractFirefoxCookies:
         profiles_dir = mock_firefox_env(
             profiles={
                 "aaa111.other": [
-                    (".x.com", "auth_token", "wrong_token"),
+                    (".reddit.com", "reddit_session", "wrong_token"),
                 ],
                 "bbb222.default-release": [
-                    (".x.com", "auth_token", "correct_token"),
-                    (".x.com", "ct0", "correct_ct0"),
+                    (".reddit.com", "reddit_session", "correct_token"),
+                    (".reddit.com", "csrf_token", "correct_csrf_token"),
                 ],
             },
             profiles_ini=textwrap.dedent("""\
@@ -204,11 +204,11 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._get_firefox_profiles_dir",
             return_value=profiles_dir,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token", "ct0"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is not None
-        assert result["auth_token"] == "correct_token"
-        assert result["ct0"] == "correct_ct0"
+        assert result["reddit_session"] == "correct_token"
+        assert result["csrf_token"] == "correct_csrf_token"
 
     def test_firefox_not_installed(self):
         """Returns None when Firefox profiles directory doesn't exist."""
@@ -219,7 +219,7 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._is_wsl",
             return_value=False,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session"])
 
         assert result is None
 
@@ -236,7 +236,7 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._is_wsl",
             return_value=False,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token", "ct0"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is None
 
@@ -257,7 +257,7 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._is_wsl",
             return_value=False,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token", "ct0"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is None
 
@@ -266,7 +266,7 @@ class TestExtractFirefoxCookies:
         profiles_dir = mock_firefox_env(
             profiles={
                 "zzz999.fallback": [
-                    (".x.com", "auth_token", "fallback_token"),
+                    (".reddit.com", "reddit_session", "fallback_token"),
                 ],
             },
             profiles_ini="this is not valid ini content\n[[[broken",
@@ -276,10 +276,10 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._get_firefox_profiles_dir",
             return_value=profiles_dir,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session"])
 
         assert result is not None
-        assert result["auth_token"] == "fallback_token"
+        assert result["reddit_session"] == "fallback_token"
 
     def test_non_default_profile_with_cookies(self, mock_firefox_env):
         """Falls back to non-default profile when default has no X cookies."""
@@ -289,8 +289,8 @@ class TestExtractFirefoxCookies:
                     (".example.com", "session", "sess_other"),
                 ],
                 "bbb222.release": [
-                    (".x.com", "auth_token", "tok_nondefault"),
-                    (".x.com", "ct0", "ct0_nondefault"),
+                    (".reddit.com", "reddit_session", "tok_nondefault"),
+                    (".reddit.com", "csrf_token", "csrf_token_nondefault"),
                 ],
             },
             profiles_ini=textwrap.dedent("""\
@@ -314,11 +314,11 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._get_firefox_profiles_dir",
             return_value=profiles_dir,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token", "ct0"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is not None
-        assert result["auth_token"] == "tok_nondefault"
-        assert result["ct0"] == "ct0_nondefault"
+        assert result["reddit_session"] == "tok_nondefault"
+        assert result["csrf_token"] == "csrf_token_nondefault"
 
     def test_multiple_profiles_none_have_cookies(self, mock_firefox_env):
         """Returns None when no profile has matching cookies."""
@@ -355,7 +355,7 @@ class TestExtractFirefoxCookies:
             "lib.cookie_extract._is_wsl",
             return_value=False,
         ):
-            result = extract_firefox_cookies(".x.com", ["auth_token", "ct0"])
+            result = extract_firefox_cookies(".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is None
 
@@ -385,12 +385,12 @@ class TestExtractCookiesAuto:
                 return_value=profiles_dir,
             ),
         ):
-            result = extract_cookies("auto", ".x.com", ["auth_token", "ct0"])
+            result = extract_cookies("auto", ".reddit.com", ["reddit_session", "csrf_token"])
 
         # All Chromium browsers and Safari return None, Firefox succeeds
         assert result is not None
-        assert result["auth_token"] == "tok_abc123"
-        assert result["ct0"] == "ct0_xyz789"
+        assert result["reddit_session"] == "tok_abc123"
+        assert result["csrf_token"] == "csrf_token_xyz789"
 
     def test_auto_linux_tries_firefox_only(self, mock_firefox_env):
         """On Linux, auto only tries Firefox."""
@@ -403,10 +403,10 @@ class TestExtractCookiesAuto:
                 return_value=profiles_dir,
             ),
         ):
-            result = extract_cookies("auto", ".x.com", ["auth_token", "ct0"])
+            result = extract_cookies("auto", ".reddit.com", ["reddit_session", "csrf_token"])
 
         assert result is not None
-        assert result["auth_token"] == "tok_abc123"
+        assert result["reddit_session"] == "tok_abc123"
 
     def test_explicit_firefox(self, mock_firefox_env):
         """Explicit browser='firefox' goes directly to Firefox."""
@@ -416,30 +416,30 @@ class TestExtractCookiesAuto:
             "lib.cookie_extract._get_firefox_profiles_dir",
             return_value=profiles_dir,
         ):
-            result = extract_cookies("firefox", ".x.com", ["auth_token"])
+            result = extract_cookies("firefox", ".reddit.com", ["reddit_session"])
 
         assert result is not None
-        assert result["auth_token"] == "tok_abc123"
+        assert result["reddit_session"] == "tok_abc123"
 
     def test_unknown_browser_returns_none(self):
         """Unknown browser name returns None."""
-        result = extract_cookies("netscape", ".x.com", ["auth_token"])
+        result = extract_cookies("netscape", ".reddit.com", ["reddit_session"])
         assert result is None
 
     def test_chrome_delegates_to_chrome_module(self):
         """Chrome extraction delegates to chrome_cookies module."""
         with patch(
             "lib.cookie_extract.extract_chrome_cookies",
-            return_value={"auth_token": "chrome_tok"},
+            return_value={"reddit_session": "chrome_tok"},
         ):
-            result = extract_cookies("chrome", ".x.com", ["auth_token"])
-        assert result == {"auth_token": "chrome_tok"}
+            result = extract_cookies("chrome", ".reddit.com", ["reddit_session"])
+        assert result == {"reddit_session": "chrome_tok"}
 
     def test_safari_delegates_to_safari_module(self):
         """Safari extraction delegates to safari_cookies module."""
         with patch(
             "lib.cookie_extract.extract_safari_cookies",
-            return_value={"auth_token": "safari_tok"},
+            return_value={"reddit_session": "safari_tok"},
         ):
-            result = extract_cookies("safari", ".x.com", ["auth_token"])
-        assert result == {"auth_token": "safari_tok"}
+            result = extract_cookies("safari", ".reddit.com", ["reddit_session"])
+        assert result == {"reddit_session": "safari_tok"}

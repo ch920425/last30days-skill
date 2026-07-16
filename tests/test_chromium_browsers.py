@@ -26,8 +26,6 @@ ALL_AUTO_BROWSERS = ["firefox", "safari", "chrome", *NEW_CHROMIUM_BROWSERS]
 
 def _base_config(**overrides):
     cfg = {
-        "AUTH_TOKEN": None,
-        "CT0": None,
         "TRUTHSOCIAL_TOKEN": None,
         "FROM_BROWSER": None,
         "SETUP_COMPLETE": None,
@@ -92,13 +90,12 @@ class TestEnvBrowserSelection:
     @patch("lib.cookie_extract.extract_cookies")
     def test_explicit_chromium_browser_is_used(self, mock_extract, browser):
         """FROM_BROWSER=<chromium browser> routes extraction to that browser."""
-        mock_extract.return_value = {"auth_token": "tok", "ct0": "ct0val"}
+        mock_extract.return_value = {"_session_id": "tok"}
         config = _base_config(FROM_BROWSER=browser)
 
         result = extract_browser_credentials(config)
 
-        assert result["AUTH_TOKEN"] == "tok"
-        assert result["CT0"] == "ct0val"
+        assert result["TRUTHSOCIAL_TOKEN"] == "tok"
         # Every extraction call targeted exactly the requested browser.
         assert mock_extract.call_args_list
         for call in mock_extract.call_args_list:
@@ -139,19 +136,19 @@ class TestCookieExtractRouting:
             patch("lib.cookie_extract.platform.system", return_value="Darwin"),
             patch(
                 "lib.chrome_cookies.extract_chromium_browser_cookies_macos",
-                return_value={"auth_token": f"{browser}_tok"},
+                return_value={"_session_id": f"{browser}_tok"},
             ) as mock_macos,
         ):
-            result = extract_cookies(browser, ".x.com", ["auth_token"])
+            result = extract_cookies(browser, ".truthsocial.com", ["_session_id"])
 
-        assert result == {"auth_token": f"{browser}_tok"}
+        assert result == {"_session_id": f"{browser}_tok"}
         # The browser key is threaded through to the macOS extractor.
         assert mock_macos.call_args[0][0] == browser
 
     @pytest.mark.parametrize("browser", ["edge", "vivaldi", "opera", "arc", "chromium"])
     def test_non_macos_returns_none(self, browser):
         with patch("lib.cookie_extract.platform.system", return_value="Linux"):
-            assert extract_cookies(browser, ".x.com", ["auth_token"]) is None
+            assert extract_cookies(browser, ".truthsocial.com", ["_session_id"]) is None
 
     def test_auto_macos_order_includes_chromium_family(self):
         """auto on macOS calls every Chromium-family extractor when all miss."""
@@ -167,11 +164,11 @@ class TestCookieExtractRouting:
             patch("lib.cookie_extract.extract_chromium_cookies", return_value=None) as m_chr,
             patch("lib.cookie_extract.extract_safari_cookies", return_value=None),
         ):
-            result = extract_cookies("auto", ".x.com", ["auth_token"])
+            result = extract_cookies("auto", ".truthsocial.com", ["_session_id"])
 
         assert result is None
         for mock_fn in (m_chrome, m_brave, m_edge, m_viv, m_opera, m_arc, m_chr):
-            mock_fn.assert_called_once_with(".x.com", ["auth_token"])
+            mock_fn.assert_called_once_with(".truthsocial.com", ["_session_id"])
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +184,7 @@ class TestChromiumRegistry:
             assert base_dir is not None
 
     def test_unknown_browser_returns_none(self):
-        assert extract_chromium_browser_cookies_macos("netscape", ".x.com", ["auth_token"]) is None
+        assert extract_chromium_browser_cookies_macos("netscape", ".truthsocial.com", ["_session_id"]) is None
 
     def test_generic_extraction_plain_values(self, tmp_path):
         """A registry browser extracts unencrypted cookies via the shared core."""
@@ -196,8 +193,8 @@ class TestChromiumRegistry:
         _make_cookies_db(
             base / "Default" / "Cookies",
             [
-                (".x.com", "auth_token", "edge_auth"),
-                (".x.com", "ct0", "edge_ct0"),
+                (".truthsocial.com", "_session_id", "edge_auth"),
+                (".truthsocial.com", "other_cookie", "edge_ct0"),
                 (".other.com", "session", "nope"),
             ],
         )
@@ -210,9 +207,9 @@ class TestChromiumRegistry:
             # Plain values need no Keychain; ensure we never prompt.
             patch("lib.chrome_cookies._get_chromium_encryption_key", return_value=None),
         ):
-            result = extract_chromium_browser_cookies_macos("edge", ".x.com", ["auth_token", "ct0"])
+            result = extract_chromium_browser_cookies_macos("edge", ".truthsocial.com", ["_session_id", "other_cookie"])
 
-        assert result == {"auth_token": "edge_auth", "ct0": "edge_ct0"}
+        assert result == {"_session_id": "edge_auth", "other_cookie": "edge_ct0"}
 
     def test_db_not_found_returns_none(self, tmp_path):
         empty = tmp_path / "Vivaldi"
@@ -221,7 +218,7 @@ class TestChromiumRegistry:
             "lib.chrome_cookies.CHROMIUM_BROWSER_PROFILES",
             {"vivaldi": (empty, "Vivaldi Safe Storage")},
         ):
-            assert extract_chromium_browser_cookies_macos("vivaldi", ".x.com", ["auth_token"]) is None
+            assert extract_chromium_browser_cookies_macos("vivaldi", ".truthsocial.com", ["_session_id"]) is None
 
 
 class TestFindChromiumCookiesDb:
@@ -281,36 +278,36 @@ class TestLazyKeychain:
         return base
 
     def test_keychain_not_fetched_for_plain_values(self, tmp_path):
-        base = self._edge_at(tmp_path, [(".x.com", "auth_token", "plain_tok")])
+        base = self._edge_at(tmp_path, [(".truthsocial.com", "_session_id", "plain_tok")])
         with (
             patch.dict("lib.chrome_cookies.CHROMIUM_BROWSER_PROFILES",
                        {"edge": (base, "Microsoft Edge Safe Storage")}),
             patch("lib.chrome_cookies._get_chromium_encryption_key") as key_mock,
         ):
-            result = extract_chromium_browser_cookies_macos("edge", ".x.com", ["auth_token"])
-        assert result == {"auth_token": "plain_tok"}
+            result = extract_chromium_browser_cookies_macos("edge", ".truthsocial.com", ["_session_id"])
+        assert result == {"_session_id": "plain_tok"}
         key_mock.assert_not_called()  # no decryption needed -> no Keychain prompt
 
     def test_keychain_not_fetched_when_no_match(self, tmp_path):
-        base = self._edge_at(tmp_path, [(".other.com", "auth_token", "x")])
+        base = self._edge_at(tmp_path, [(".other.com", "_session_id", "x")])
         with (
             patch.dict("lib.chrome_cookies.CHROMIUM_BROWSER_PROFILES",
                        {"edge": (base, "Microsoft Edge Safe Storage")}),
             patch("lib.chrome_cookies._get_chromium_encryption_key") as key_mock,
         ):
-            result = extract_chromium_browser_cookies_macos("edge", ".x.com", ["auth_token"])
+            result = extract_chromium_browser_cookies_macos("edge", ".truthsocial.com", ["_session_id"])
         assert result is None
         key_mock.assert_not_called()  # cookie absent -> no Keychain prompt
 
     def test_keychain_fetched_and_decrypts_v10(self, tmp_path):
-        base = self._edge_at(tmp_path, [(".x.com", "auth_token", b"v10ciphertextbytes")], encrypted=True)
+        base = self._edge_at(tmp_path, [(".truthsocial.com", "_session_id", b"v10ciphertextbytes")], encrypted=True)
         with (
             patch.dict("lib.chrome_cookies.CHROMIUM_BROWSER_PROFILES",
                        {"edge": (base, "Microsoft Edge Safe Storage")}),
             patch("lib.chrome_cookies._get_chromium_encryption_key", return_value=b"passphrase") as key_mock,
             patch("lib.chrome_cookies._decrypt_v10_value", return_value="decrypted_tok") as dec_mock,
         ):
-            result = extract_chromium_browser_cookies_macos("edge", ".x.com", ["auth_token"])
-        assert result == {"auth_token": "decrypted_tok"}
+            result = extract_chromium_browser_cookies_macos("edge", ".truthsocial.com", ["_session_id"])
+        assert result == {"_session_id": "decrypted_tok"}
         key_mock.assert_called_once_with("Microsoft Edge Safe Storage")
         assert dec_mock.called

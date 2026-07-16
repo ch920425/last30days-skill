@@ -147,7 +147,6 @@ def audit_state(
 # Report order: chained sources first, then free, then key-gated/opt-in.
 SOURCE_ORDER = (
     "reddit",
-    "x",
     "youtube",
     "web",
     "hackernews",
@@ -189,7 +188,6 @@ _OPTIONAL_CLI_SOURCES = frozenset({"github"})
 KEY_PRESENCE_VARS = (
     "SCRAPECREATORS_API_KEY",
     "XAI_API_KEY",
-    "XQUIK_API_KEY",
     "BRAVE_API_KEY",
     "EXA_API_KEY",
     "SERPER_API_KEY",
@@ -409,29 +407,6 @@ def _sc_optin_record(config: Dict[str, Any], source: str, purpose: str) -> Dict[
 
 def _reddit_record(config):
     return _chained_record("reddit", config)
-
-
-def _x_record(config):
-    record = _chained_record("x", config)
-    # Diagnose/doctor load config in plan_only mode, so browser cookies are not
-    # extracted and every X backend reads as statically missing -> unconfigured.
-    # But if bird is installed and FROM_BROWSER will authenticate X at run time,
-    # a normal run serves X fine (this is how the reporting user pulled 29 posts
-    # while doctor said "Off"). Reuse the existing shared predicate so doctor and
-    # diagnose cannot drift. It reads no cookie *values*, so it confirms a run
-    # will *attempt* browser auth, not that the session is currently valid -
-    # keep the note honest and point at the verified key-backed path.
-    if record["status"] == "unconfigured" and env.x_pending_browser_auth(
-        config, local_only=True
-    ):
-        record["status"] = health.OK
-        record["tier"] = TIER_BY_STATUS[health.OK]
-        record["note"] = (
-            "will use: bird (browser cookies; session not verified until a run "
-            "- add XAI_API_KEY for a verified, cookie-free path)"
-        )
-        record["fix"] = ""
-    return record
 
 
 def _youtube_record(config):
@@ -706,7 +681,6 @@ def _library_record(config):
 
 _SOURCE_BUILDERS: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
     "reddit": _reddit_record,
-    "x": _x_record,
     "youtube": _youtube_record,
     "web": _web_record,
     "hackernews": _hackernews_record,
@@ -816,8 +790,8 @@ def load_run_evidence(
 # ---------------------------------------------------------------------------
 # Backup + comment sub-lanes (U7 / R8, R9)
 #
-# Backups (Reddit's SC backfill, YouTube's SC transcript/search backstop, X's
-# cookie-vs-key dual path) and comment lanes (youtube/tiktok/instagram) are not
+# Backups (Reddit's SC backfill and YouTube's SC transcript/search backstop)
+# and comment lanes (youtube/tiktok/instagram) are not
 # independent sources - they are capabilities of their parent. doctor surfaces
 # them as indented sub-lines so "is a backup armed when yt-dlp is rate-limited?"
 # is answerable at a glance without inventing fake sources.
@@ -839,19 +813,6 @@ def _sub_lanes_for(source: str, config: Dict[str, Any]):
             "note": "used when yt-dlp is rate-limited or bot-gated",
         })
         comments = {"enabled": bool(env.is_youtube_comments_available(config))}
-    elif source == "x":
-        has_key = bool(config.get("XAI_API_KEY") or config.get("XQUIK_API_KEY"))
-        cookie = bool(env.x_pending_browser_auth(config, local_only=True))
-        if has_key:
-            note = "XAI_API_KEY key-backed path (verified, cookie-free)"
-        elif cookie:
-            note = (
-                "browser-cookie path primary; add XAI_API_KEY for a verified "
-                "cookie-free backup"
-            )
-        else:
-            note = "no auth path armed"
-        backups.append({"name": "X auth path", "armed": has_key or cookie, "note": note})
     elif source == "tiktok":
         comments = {"enabled": bool(env.is_tiktok_comments_available(config))}
     elif source == "instagram":
@@ -878,9 +839,6 @@ def _engine_version() -> str:
 
 def _setup_block(config: Dict[str, Any]) -> Dict[str, Any]:
     keys_present = {var: bool(config.get(var)) for var in KEY_PRESENCE_VARS}
-    keys_present["x_browser_cookies"] = bool(
-        config.get("AUTH_TOKEN") and config.get("CT0")
-    )
     keys_present["bluesky_app_password"] = bool(
         config.get("BSKY_HANDLE") and config.get("BSKY_APP_PASSWORD")
     )
@@ -1301,12 +1259,12 @@ DEFAULT_CACHE_TTL_SECONDS = 900
 # carries no secrets by design (key presence is booleans only); this belt-and-
 # suspenders check refuses to persist the cache if a seeded value ever leaks.
 _SECRET_CONFIG_VARS = KEY_PRESENCE_VARS + (
-    "AUTH_TOKEN", "CT0", "APIFY_API_TOKEN", "GOOGLE_GENAI_API_KEY",
+    "APIFY_API_TOKEN", "GOOGLE_GENAI_API_KEY",
 )
 
 # Backend pin vars folded into the config fingerprint. Pin values are
 # backend names (e.g. "bird"), never secrets.
-_FINGERPRINT_PIN_VARS = (env.X_BACKEND_PIN_VAR, env.REDDIT_BACKEND_PIN_VAR)
+_FINGERPRINT_PIN_VARS = (env.REDDIT_BACKEND_PIN_VAR,)
 
 # Top-level report keys the renderers read unguarded; a cached report
 # missing any of them is treated as corrupt (absent), never rendered.

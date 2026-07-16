@@ -12,7 +12,7 @@ from . import categories, entity_extract, http, providers, query, relevance, sch
 # Hebrew Unicode block: U+0590–U+05FF
 _HEBREW_RE = re.compile(r'[\u0590-\u05FF]')
 
-DISCOVERY_SOURCE_ORDER = ("reddit", "hackernews", "digg", "x")
+DISCOVERY_SOURCE_ORDER = ("reddit", "hackernews", "digg")
 
 
 def detect_language(text: str) -> str | None:
@@ -30,7 +30,7 @@ def build_discovery_plan(
 
     An empty domain is global trending: sweep every river feed's own hot list
     (r/all, HN front page, Digg) with no category scoping. Keyword-driven
-    sources (X, Techmeme, arXiv - none of which expose a river/front-page
+    sources (Techmeme and arXiv, neither of which exposes a river/front-page
     lane) sit out of the global nominate stage and join per-topic at the
     enrichment pass, where every nomination gets a full research run.
     """
@@ -42,7 +42,6 @@ def build_discovery_plan(
             if subreddit.strip()
         ]
         allowed = set(DISCOVERY_SOURCE_ORDER if available_sources is None else available_sources)
-        allowed.discard("x")
         sources = [source for source in DISCOVERY_SOURCE_ORDER if source in allowed]
         if not sources:
             raise ValueError("No listing sources are available for global trending")
@@ -94,24 +93,24 @@ ALLOWED_INTENTS = {
 }
 ALLOWED_CLUSTER_MODES = {"none", "story", "workflow", "market", "debate"}
 QUICK_SOURCE_PRIORITY = {
-    "factual": ["hackernews", "reddit", "x", "xquik", "youtube"],
-    "product": ["jobs", "youtube", "reddit", "x", "xquik", "tiktok"],
-    "concept": ["hackernews", "reddit", "x", "xquik", "youtube"],
-    "opinion": ["reddit", "x", "xquik", "youtube", "hackernews"],
-    "how_to": ["youtube", "reddit", "x", "xquik", "hackernews"],
-    "comparison": ["reddit", "x", "xquik", "hackernews", "youtube"],
-    "breaking_news": ["x", "xquik", "reddit", "hackernews", "youtube", "polymarket"],
-    "prediction": ["polymarket", "x", "xquik", "hackernews", "reddit", "youtube"],
+    "factual": ["hackernews", "reddit", "youtube"],
+    "product": ["jobs", "youtube", "reddit", "tiktok"],
+    "concept": ["hackernews", "reddit", "youtube"],
+    "opinion": ["reddit", "youtube", "hackernews"],
+    "how_to": ["youtube", "reddit", "hackernews"],
+    "comparison": ["reddit", "hackernews", "youtube"],
+    "breaking_news": ["reddit", "hackernews", "youtube", "polymarket"],
+    "prediction": ["polymarket", "hackernews", "reddit", "youtube"],
 }
 SOURCE_PRIORITY = {
-    "factual": ["hackernews", "reddit", "x", "youtube"],
-    "product": ["jobs", "youtube", "reddit", "x", "tiktok", "hackernews"],
-    "concept": ["hackernews", "reddit", "x", "youtube"],
-    "opinion": ["reddit", "x", "stocktwits", "dripstack", "youtube", "hackernews"],
-    "how_to": ["youtube", "reddit", "x", "hackernews"],
-    "comparison": ["reddit", "x", "hackernews", "youtube"],
-    "breaking_news": ["x", "stocktwits", "reddit", "hackernews", "youtube", "polymarket"],
-    "prediction": ["polymarket", "stocktwits", "dripstack", "x", "hackernews", "reddit", "youtube"],
+    "factual": ["hackernews", "reddit", "youtube"],
+    "product": ["jobs", "youtube", "reddit", "tiktok", "hackernews"],
+    "concept": ["hackernews", "reddit", "youtube"],
+    "opinion": ["reddit", "stocktwits", "dripstack", "youtube", "hackernews"],
+    "how_to": ["youtube", "reddit", "hackernews"],
+    "comparison": ["reddit", "hackernews", "youtube"],
+    "breaking_news": ["stocktwits", "reddit", "hackernews", "youtube", "polymarket"],
+    "prediction": ["polymarket", "stocktwits", "dripstack", "hackernews", "reddit", "youtube"],
 }
 SOURCE_LIMITS = {
     "quick": {
@@ -134,8 +133,6 @@ INTENT_SOURCE_EXCLUSIONS: dict[str, set[str]] = {
 }
 SOURCE_CAPABILITIES = {
     "reddit": {"discussion", "social"},
-    "x": {"discussion", "social"},
-    "xquik": {"discussion", "social"},
     "youtube": {"video", "video_longform", "discussion"},
     "tiktok": {"video", "video_shortform", "social"},
     "instagram": {"video", "video_shortform", "social"},
@@ -382,7 +379,7 @@ Return JSON only with this shape:
       "label": "short label",
       "search_query": "keyword style query for search APIs",
       "ranking_query": "natural language rewrite for reranking",
-      "sources": ["reddit", "x", "grounding"],
+      "sources": ["reddit", "grounding"],
       "weight": 1.0
     }}
   ],
@@ -609,7 +606,11 @@ def _fallback_plan(
         available_sources = ordered
         if requested_sources:
             requested_sources = ['grounding'] + [s for s in requested_sources if s != 'grounding']
-    allowed_sources = requested_sources or available_sources
+    allowed_sources = [
+        source
+        for source in (requested_sources or available_sources)
+        if source not in {"x", "twitter", "bird", "xquik"}
+    ]
     source_weights = _default_source_weights(intent, allowed_sources)
     core = query.extract_core_subject(topic, max_words=6, strip_suffixes=True)
     base_search = _keyword_query(topic, core)
@@ -642,7 +643,7 @@ def _fallback_plan(
                 label="odds",
                 search_query=f"{base_search} odds forecast",
                 ranking_query=f"What are the current odds, forecasts, or market signals about {topic}?",
-                sources=[source for source in source_weights if source in {"polymarket", "grounding", "x", "reddit"}] or list(source_weights),
+                sources=[source for source in source_weights if source in {"polymarket", "grounding", "reddit"}] or list(source_weights),
                 weight=0.7,
             )
         )
@@ -652,7 +653,7 @@ def _fallback_plan(
                 label="reaction",
                 search_query=f"{base_search} reaction update",
                 ranking_query=f"What new reactions or follow-up reporting from the last 30 days matter for {topic}?",
-                sources=[source for source in source_weights if source in {"x", "reddit", "grounding", "hackernews"}] or list(source_weights),
+                sources=[source for source in source_weights if source in {"reddit", "grounding", "hackernews"}] or list(source_weights),
                 weight=0.7,
             )
         )
@@ -743,11 +744,11 @@ def _default_cluster_mode(intent: str) -> str:
 def _default_source_weights(intent: str, sources: list[str]) -> dict[str, float]:
     base = {source: 1.0 for source in sources}
     if intent == "prediction":
-        for source, bonus in {"polymarket": 2.5, "x": 1.3}.items():
+        for source, bonus in {"polymarket": 2.5}.items():
             if source in base:
                 base[source] += bonus
     elif intent == "breaking_news":
-        for source, bonus in {"x": 1.5, "reddit": 1.3, "hackernews": 0.8}.items():
+        for source, bonus in {"reddit": 1.3, "hackernews": 0.8}.items():
             if source in base:
                 base[source] += bonus
     elif intent == "how_to":
@@ -755,7 +756,7 @@ def _default_source_weights(intent: str, sources: list[str]) -> dict[str, float]
             if source in base:
                 base[source] += bonus
     elif intent == "factual":
-        for source, bonus in {"reddit": 0.8, "x": 0.5}.items():
+        for source, bonus in {"reddit": 0.8}.items():
             if source in base:
                 base[source] += bonus
     elif intent == "product":

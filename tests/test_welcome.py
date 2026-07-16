@@ -16,7 +16,6 @@ class TestWelcome(unittest.TestCase):
     def test_render_welcome_names_the_source_set(self):
         text = setup_wizard.render_welcome()
         for source in (
-            "X/Twitter",
             "Reddit",
             "YouTube",
             "Digg",
